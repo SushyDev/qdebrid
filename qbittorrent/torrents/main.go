@@ -4,22 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"qdebrid/config"
 	"qdebrid/real_debrid"
 	"reflect"
 	"strings"
 	"time"
-	"qdebrid/config"
 )
 
-var defaultCategory = "debrid"
-
-// TODO Make configurable
-var defaultCategories = QBitTorrentCategories{
-	"debrid": QBitTorrentCategory{
-		Name:     defaultCategory,
-		SavePath: config.GetSettings().SavePath,
-	},
-}
+var settings = config.GetSettings()
 
 // ZCACHE
 var cachedTorrents = real_debrid.TorrentsResponse{}
@@ -56,7 +48,12 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func Categories(w http.ResponseWriter, r *http.Request) {
-	categories := defaultCategories
+	categories := QBitTorrentCategories{
+		settings.CategoryName: QBitTorrentCategory{
+			Name:     settings.CategoryName,
+			SavePath: settings.SavePath,
+		},
+	}
 
 	jsonData, err := json.Marshal(categories)
 	if err != nil {
@@ -82,8 +79,6 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	savePath := defaultCategories[defaultCategory].SavePath
-
 	properties := PropertiesResponse{
 		AdditionDate: time.Now().Unix(),
 
@@ -99,7 +94,7 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		// PiecesHave:
 		// PiecesNumber:
 
-		SavePath: savePath,
+		SavePath: settings.SavePath,
 
 		SeedingTime: 1,
 		Seeds:       100,
@@ -247,11 +242,6 @@ func Add(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		http.Error(w, "Error parsing form", http.StatusInternalServerError)
 		return
-	}
-
-	savePath := r.FormValue("savepath")
-	if savePath == "" {
-		savePath = defaultCategories[defaultCategory].SavePath
 	}
 
 	urls := r.FormValue("urls")

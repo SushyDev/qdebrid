@@ -20,6 +20,7 @@ type Radarr struct {
 }
 
 type Settings struct {
+	CategoryName   string     `yaml:"category_name"`
 	SavePath   string     `yaml:"save_path"`
 	RealDebrid RealDebrid `yaml:"real_debrid"`
 	Overseerr  Overseerr  `yaml:"overseerr"`

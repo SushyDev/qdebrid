@@ -8,6 +8,8 @@ import (
 	"qdebrid/config"
 )
 
+var apiPath = "/api/v3"
+
 func History() (HistoryResponse, error) {
 	settings := config.GetSettings()
 
@@ -16,7 +18,7 @@ func History() (HistoryResponse, error) {
 		return HistoryResponse{}, fmt.Errorf("Invalid Sonarr URL")
 	}
 
-	url.Path += "/history"
+	url.Path += apiPath + "/history"
 	url.Query().Add("eventType", "1")
 	url.Query().Add("pageSize", "-1")
 

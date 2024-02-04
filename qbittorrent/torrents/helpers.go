@@ -103,8 +103,7 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
 
-	savePath := defaultCategories[defaultCategory].SavePath
-	contentPath := filepath.Join(savePath, torrent.Filename)
+	contentPath := filepath.Join(settings.SavePath, torrent.Filename)
 
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
@@ -117,7 +116,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		Availability: 2,
 
-		Category: defaultCategory,
+		Category: settings.CategoryName,
 
 		Completed:    bytesDone,
 		CompletionOn: addedOn.Unix(),
@@ -146,7 +145,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		Ratio:      1,
 		RatioLimit: 1,
 
-		SavePath: savePath,
+		SavePath: settings.SavePath,
 
 		SeedingTimeLimit: 1,
 
