@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"time"
+	"qdebrid/config"
 )
 
 var defaultCategory = "debrid"
@@ -16,7 +17,7 @@ var defaultCategory = "debrid"
 var defaultCategories = QBitTorrentCategories{
 	"debrid": QBitTorrentCategory{
 		Name:     defaultCategory,
-		SavePath: "/mnt/zurg/__all__",
+		SavePath: config.GetSettings().SavePath,
 	},
 }
 

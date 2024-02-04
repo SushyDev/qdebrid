@@ -8,10 +8,10 @@ import (
 	"qdebrid/config"
 )
 
-var baseURL = "http://proxyman.debug:8989/api/v3"
-
 func History() (HistoryResponse, error) {
-	url, err := url.Parse(baseURL)
+	settings := config.GetSettings()
+
+	url, err := url.Parse(settings.Sonarr.Host)
 	if err != nil {
 		return HistoryResponse{}, fmt.Errorf("Invalid Sonarr URL")
 	}
@@ -26,7 +26,6 @@ func History() (HistoryResponse, error) {
 		return HistoryResponse{}, err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("X-Api-Key", settings.Sonarr.Token)
 
 	client := &http.Client{}
