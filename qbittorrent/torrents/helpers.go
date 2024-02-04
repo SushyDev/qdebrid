@@ -1,0 +1,169 @@
+package torrents
+
+import (
+	"bufio"
+	"fmt"
+	"path/filepath"
+	"qdebrid/real_debrid"
+	"qdebrid/sonarr"
+	"qdebrid/radarr"
+	"strings"
+	"time"
+)
+
+func SplitString(s string, sep string) []string {
+	reader := strings.NewReader(s)
+	scanner := bufio.NewScanner(reader)
+	scanner.Split(bufio.ScanLines)
+
+	var result []string
+	for scanner.Scan() {
+		result = append(result, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil
+	}
+
+	return result
+}
+
+type SonarrTorrent struct {
+	History sonarr.Record
+	Torrent real_debrid.Torrent
+}
+
+type RadarrTorrent struct {
+	History radarr.Record
+	Torrent real_debrid.Torrent
+}
+
+func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrent, error) {
+	history, err := sonarr.History()
+	if err != nil {
+		fmt.Println("Failed to fetch history")
+		return nil, err
+	}
+
+	var sonarrTorrents []SonarrTorrent
+	for _, record := range history.Records {
+		torrents:
+		for _, torrent := range torrents {
+			if strings.EqualFold(record.DownloadID, torrent.Hash) {
+				for _, existing := range sonarrTorrents {
+					if existing.Torrent.Hash == torrent.Hash {
+						break torrents
+					}
+				}
+
+				sonarrTorrent := SonarrTorrent{
+					History: record,
+					Torrent: torrent,
+				}
+
+				sonarrTorrents = append(sonarrTorrents, sonarrTorrent)
+			}
+		}
+	}
+
+	return sonarrTorrents, nil
+}
+
+func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrent, error) {
+	history, err := radarr.History()
+	if err != nil {
+		fmt.Println("Failed to fetch history")
+		return nil, err
+	}
+
+	var radarrTorrents []RadarrTorrent
+	for _, record := range history.Records {
+		torrents:
+		for _, torrent := range torrents {
+			if strings.EqualFold(record.DownloadID, torrent.Hash) {
+				for _, existing := range radarrTorrents {
+					if existing.Torrent.Hash == torrent.Hash {
+						break torrents
+					}
+				}
+
+				radarrTorrent := RadarrTorrent{
+					History: record,
+					Torrent: torrent,
+				}
+
+				radarrTorrents = append(radarrTorrents, radarrTorrent)
+			}
+		}
+	}
+
+	return radarrTorrents, nil
+}
+
+func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
+	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
+
+	savePath := defaultCategories[defaultCategory].SavePath
+	contentPath := filepath.Join(savePath, torrent.Filename)
+
+	bytesTotal := int64(torrent.Bytes)
+	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
+
+	return TorrentInfo{
+		Hash: torrent.Hash,
+
+		AddedOn:    addedOn.Unix(),
+		AmountLeft: bytesTotal - bytesDone,
+
+		Availability: 2,
+
+		Category: defaultCategory,
+
+		Completed:    bytesDone,
+		CompletionOn: addedOn.Unix(),
+
+		ContentPath: contentPath,
+
+		DownloadLimit: -1,
+		// DownloadSpeed:
+
+		Downloaded:        bytesDone,
+		DownloadedSession: bytesDone,
+
+		LastActivity: time.Now().Unix(),
+
+		MaxRatio:       -1,
+		MaxSeedingTime: -1,
+
+		Name: torrent.Filename,
+
+		// NumComplete: 10,
+		// NumLeechs: 100,
+		// NumSeeds: 100,
+
+		Progress: torrent.Progress / 100,
+
+		Ratio:      1,
+		RatioLimit: 1,
+
+		SavePath: savePath,
+
+		SeedingTimeLimit: 1,
+
+		SeenComplete: time.Now().Unix(),
+
+		Size: bytesTotal,
+
+		// use fs to check if direcotry exists and set state between pending and pausedUP
+		State: "pausedUP",
+
+		TimeActive: time.Now().Unix() - addedOn.Unix(),
+
+		TotalSize: bytesTotal,
+
+		UploadLimit:     -1,
+		Uploaded:        bytesDone,
+		UploadedSession: bytesDone,
+		// UploadSpeed:
+	}
+}
