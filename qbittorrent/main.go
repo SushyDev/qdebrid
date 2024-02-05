@@ -22,9 +22,9 @@ func Listen() {
 
 	// Torrents
 	mux.HandleFunc("/api/v2/torrents/categories", torrents.Categories)
-	mux.HandleFunc("/api/v2/torrents/info", torrents.Info)
 	mux.HandleFunc("/api/v2/torrents/add", torrents.Add)
 	mux.HandleFunc("/api/v2/torrents/delete", torrents.Delete)
+	mux.HandleFunc("/api/v2/torrents/info", torrents.Info)
 	mux.HandleFunc("/api/v2/torrents/files", torrents.Files)
 	mux.HandleFunc("/api/v2/torrents/properties", torrents.Properties)
 

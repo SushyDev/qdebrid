@@ -3,10 +3,11 @@ package torrents
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"path/filepath"
+	"qdebrid/radarr"
 	"qdebrid/real_debrid"
 	"qdebrid/sonarr"
-	"qdebrid/radarr"
 	"strings"
 	"time"
 )
@@ -47,7 +48,7 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 
 	var sonarrTorrents []SonarrTorrent
 	for _, record := range history.Records {
-		torrents:
+	torrents:
 		for _, torrent := range torrents {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {
 				for _, existing := range sonarrTorrents {
@@ -78,7 +79,7 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 
 	var radarrTorrents []RadarrTorrent
 	for _, record := range history.Records {
-		torrents:
+	torrents:
 		for _, torrent := range torrents {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {
 				for _, existing := range radarrTorrents {
@@ -100,6 +101,30 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 	return radarrTorrents, nil
 }
 
+func PathExists(path string) (bool, error) {
+	httpPath := "http://localhost:9999/http/__all__/" + path + "/"
+
+	req, err := http.NewRequest("GET", httpPath, nil)
+	if err != nil {
+		return false, err
+	}
+
+	client := &http.Client{}
+
+	response, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode == 200 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
 
@@ -108,13 +133,21 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
 
+	contentPathExists, _ := PathExists(torrent.Filename)
+
+	state := "downloading"
+
+	if contentPathExists {
+		state = "pausedUP"
+	}
+
 	return TorrentInfo{
 		Hash: torrent.Hash,
 
 		AddedOn:    addedOn.Unix(),
 		AmountLeft: bytesTotal - bytesDone,
 
-		Availability: 2,
+		// Availability: 2,
 
 		Category: settings.CategoryName,
 
@@ -147,14 +180,14 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		SavePath: settings.SavePath,
 
-		SeedingTimeLimit: 1,
+		// SeedingTimeLimit: 1,
 
 		SeenComplete: time.Now().Unix(),
 
 		Size: bytesTotal,
 
 		// use fs to check if direcotry exists and set state between pending and pausedUP
-		State: "pausedUP",
+		State: state,
 
 		TimeActive: time.Now().Unix() - addedOn.Unix(),
 

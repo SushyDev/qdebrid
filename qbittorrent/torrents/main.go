@@ -16,8 +16,6 @@ var settings = config.GetSettings()
 // ZCACHE
 var cachedTorrents = real_debrid.TorrentsResponse{}
 
-var cachedTorrent = real_debrid.TorrentInfoResponse{}
-
 func Delete(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
@@ -67,6 +65,14 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 
 func Properties(w http.ResponseWriter, r *http.Request) {
 	hash := r.URL.Query().Get("hash")
+
+	var cachedTorrent = real_debrid.Torrent{}
+	for _, torrent := range cachedTorrents {
+		if torrent.Hash == hash {
+			cachedTorrent = torrent
+			break
+		}
+	}
 
 	if cachedTorrent.Hash != hash {
 		http.Error(w, "Cached torrent didn't match hash", http.StatusInternalServerError)
@@ -138,11 +144,10 @@ func Files(w http.ResponseWriter, r *http.Request) {
 
 	torrent, err := real_debrid.TorrentInfo(id)
 	if err != nil {
-		http.Error(w, "Error fetching torrent", http.StatusInternalServerError)
+		fmt.Println("Error fetching torrent")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	cachedTorrent = torrent
 
 	var files = []FileResponse{}
 	for index, torrentFile := range torrent.Files {
@@ -169,11 +174,6 @@ func Files(w http.ResponseWriter, r *http.Request) {
 
 func Info(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	// if request user-agent starts with "Sonarr" or "Radarr"
-	if strings.HasPrefix(r.UserAgent(), "Sonarr") {
-		fmt.Println("Sonarr request")
-	}
 
 	torrents, err := real_debrid.Torrents()
 	if err != nil {
