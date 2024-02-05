@@ -10,9 +10,9 @@ import (
 
 var apiPath = "/api/v3"
 
-func History() (HistoryResponse, error) {
-	settings := config.GetSettings()
+var settings = config.GetSettings()
 
+func History() (HistoryResponse, error) {
 	url, err := url.Parse(settings.Sonarr.Host)
 	if err != nil {
 		return HistoryResponse{}, fmt.Errorf("Invalid Sonarr URL")

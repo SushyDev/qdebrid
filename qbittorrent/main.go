@@ -3,10 +3,15 @@ package qbittorrent
 import (
 	"fmt"
 	"net/http"
+	"qdebrid/config"
 	"qdebrid/qbittorrent/app"
 	"qdebrid/qbittorrent/auth"
 	"qdebrid/qbittorrent/torrents"
 )
+
+var apiPath = "/api/v2"
+
+var settings = config.GetSettings()
 
 func Listen() {
 	mux := http.NewServeMux()
@@ -14,21 +19,33 @@ func Listen() {
 	// Routes
 
 	// Auth
-	mux.HandleFunc("/api/v2/auth/login", auth.Login)
+	mux.HandleFunc(apiPath + "/auth/login", auth.Login)
 
 	// App
-	mux.HandleFunc("/api/v2/app/webapiVersion", app.Version)
-	mux.HandleFunc("/api/v2/app/preferences", app.Preferences)
+	mux.HandleFunc(apiPath + "/webapiVersion", app.Version)
+	mux.HandleFunc(apiPath + "/preferences", app.Preferences)
 
 	// Torrents
-	mux.HandleFunc("/api/v2/torrents/categories", torrents.Categories)
-	mux.HandleFunc("/api/v2/torrents/add", torrents.Add)
-	mux.HandleFunc("/api/v2/torrents/delete", torrents.Delete)
-	mux.HandleFunc("/api/v2/torrents/info", torrents.Info)
-	mux.HandleFunc("/api/v2/torrents/files", torrents.Files)
-	mux.HandleFunc("/api/v2/torrents/properties", torrents.Properties)
+	mux.HandleFunc(apiPath + "/torrents/categories", torrents.Categories)
+	mux.HandleFunc(apiPath + "/torrents/add", torrents.Add)
+	mux.HandleFunc(apiPath + "/torrents/delete", torrents.Delete)
+	mux.HandleFunc(apiPath + "/torrents/info", torrents.Info)
+	mux.HandleFunc(apiPath + "/torrents/files", torrents.Files)
+	mux.HandleFunc(apiPath + "/torrents/properties", torrents.Properties)
 
-	// TODO Make configurable
-	fmt.Println("Server listening on :8080")
-	http.ListenAndServe("localhost:8080", mux)
+	host := ""
+	port := "8080"
+
+	if settings.Host != "" {
+		host = settings.Host
+	}
+
+	if settings.Port != 0 {
+		port = fmt.Sprintf("%d", settings.Port)
+	}
+
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	fmt.Printf("Listening on %s\n", addr)
+	http.ListenAndServe(addr, mux)
 }

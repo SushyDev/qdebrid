@@ -133,12 +133,13 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
 
-	contentPathExists, _ := PathExists(torrent.Filename)
+	pathExists, _ := PathExists(torrent.Filename)
 
 	state := "downloading"
-
-	if contentPathExists {
-		state = "pausedUP"
+	if !settings.ValidatePaths {
+		state = "pausedDL"
+	} else if settings.ValidatePaths && pathExists {
+		state = "pausedDL"
 	}
 
 	return TorrentInfo{

@@ -16,14 +16,21 @@ type AddMagnetResponse struct {
 	Uri string `json:"uri"`
 }
 
+var apiHost = "https://api.real-debrid.com"
+var apiPath = "/rest/1.0"
+
+var settings = config.GetSettings()
+
 func InstantAvailability(hash string) (InstantAvailabilityResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/%s", hash), nil)
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/instantAvailability/" + hash
+	
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return InstantAvailabilityResponse{}, err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 
 	client := &http.Client{}
@@ -59,13 +66,15 @@ func InstantAvailability(hash string) (InstantAvailabilityResponse, error) {
 
 
 func Torrents() (TorrentsResponse, error) {
-	req, err := http.NewRequest("GET", "https://api.real-debrid.com/rest/1.0/torrents", nil)
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents"
+
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return TorrentsResponse{}, err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 
 	client := &http.Client{}
@@ -98,13 +107,15 @@ func Torrents() (TorrentsResponse, error) {
 }
 
 func TorrentInfo(infoHash string) (TorrentInfoResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://api.real-debrid.com/rest/1.0/torrents/info/%s", infoHash), nil)
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/info/" + infoHash
+
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return TorrentInfoResponse{}, err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 
 	client := &http.Client{}
@@ -141,15 +152,17 @@ func TorrentInfo(infoHash string) (TorrentInfoResponse, error) {
 func AddMagnet(magnet string, files string) error {
 	input := url.Values{}
 	input.Set("magnet", magnet)
-
 	requestBody := input.Encode()
-	req, err := http.NewRequest("POST", "https://api.real-debrid.com/rest/1.0/torrents/addMagnet", bytes.NewBufferString(requestBody))
+
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/addMagnet"
+
+	req, err := http.NewRequest("POST", url.String(), bytes.NewBufferString(requestBody))
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -197,13 +210,15 @@ func AddMagnet(magnet string, files string) error {
 }
 
 func AddTorrent(torrent multipart.File, files string) error {
-	req, err := http.NewRequest("PUT", "https://api.real-debrid.com/rest/1.0/torrents/addTorrent", torrent)
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/addTorrent"
+
+	req, err := http.NewRequest("PUT", url.String(), torrent)
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -252,13 +267,15 @@ func AddTorrent(torrent multipart.File, files string) error {
 
 
 func Delete(id string) error {
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://api.real-debrid.com/rest/1.0/torrents/delete/%s", id), nil)
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/delete/" + id
+
+	req, err := http.NewRequest("DELETE", url.String(), nil)
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -290,14 +307,16 @@ func selectFiles(id string, files string) error {
 	input := url.Values{}
 	input.Set("files", files)
 
+	url, _ := url.Parse(apiHost)
+	url.Path += apiPath + "/torrents/selectFiles/" + id
+
 	requestBody := input.Encode()
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://api.real-debrid.com/rest/1.0/torrents/selectFiles/%s", id), bytes.NewBufferString(requestBody))
+	req, err := http.NewRequest("POST", url.String(), bytes.NewBufferString(requestBody))
 	if err != nil {
 		fmt.Println("Failed to create request")
 		return err
 	}
 
-	settings := config.GetSettings()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", settings.RealDebrid.Token))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
