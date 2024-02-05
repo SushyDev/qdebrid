@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"qdebrid/radarr"
 	"qdebrid/real_debrid"
@@ -102,9 +103,10 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 }
 
 func PathExists(path string) (bool, error) {
-	httpPath := "http://localhost:9999/http/__all__/" + path + "/"
+	url, _ := url.Parse(settings.Zurg.Host)
+	url.Path += "/http/__all__/" + path + "/"
 
-	req, err := http.NewRequest("GET", httpPath, nil)
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return false, err
 	}
