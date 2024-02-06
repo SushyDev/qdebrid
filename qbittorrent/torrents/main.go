@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"qdebrid/config"
 	"qdebrid/real_debrid"
 	"reflect"
@@ -79,6 +80,8 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	contentPath := filepath.Join(settings.SavePath, cachedTorrent.Filename)
+
 	addedOn, err := time.Parse(time.RFC3339Nano, cachedTorrent.Added)
 	if err != nil {
 		http.Error(w, "Error parsing date", http.StatusInternalServerError)
@@ -100,7 +103,7 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		// PiecesHave:
 		// PiecesNumber:
 
-		SavePath: settings.SavePath,
+		SavePath: contentPath,
 
 		SeedingTime: 1,
 		Seeds:       100,
@@ -185,6 +188,7 @@ func Info(w http.ResponseWriter, r *http.Request) {
 
 	userAgent := strings.Split(r.UserAgent(), "/")[0]
 
+		torrentInfos := []TorrentInfo{}
 	switch userAgent {
 	case "Radarr":
 		historyMatches, err := RadarrTorrents(userAgent, cachedTorrents)
@@ -193,20 +197,11 @@ func Info(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		torrentInfos := []TorrentInfo{}
 		for _, match := range historyMatches {
 			torrentInfo := GetTorrentInfo(match.Torrent)
 			torrentInfos = append(torrentInfos, torrentInfo)
 		}
 
-		jsonData, err := json.Marshal(torrentInfos)
-		if err != nil {
-			http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonData)
 	case "Sonarr":
 		historyMatches, err := SonarrTorrents(userAgent, cachedTorrents)
 		if err != nil {
@@ -214,21 +209,25 @@ func Info(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		torrentInfos := []TorrentInfo{}
 		for _, match := range historyMatches {
 			torrentInfo := GetTorrentInfo(match.Torrent)
 			torrentInfos = append(torrentInfos, torrentInfo)
 		}
-
-		jsonData, err := json.Marshal(torrentInfos)
-		if err != nil {
-			http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
-			return
+	default:
+		for _, torrent := range cachedTorrents {
+			torrentInfo := GetTorrentInfo(torrent)
+			torrentInfos = append(torrentInfos, torrentInfo)
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonData)
 	}
+
+	jsonData, err := json.Marshal(torrentInfos)
+	if err != nil {
+		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
 }
 
 func Add(w http.ResponseWriter, r *http.Request) {

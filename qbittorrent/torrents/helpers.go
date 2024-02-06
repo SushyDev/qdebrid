@@ -137,20 +137,18 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 	pathExists, _ := PathExists(torrent.Filename)
 
-	state := "downloading"
+	state := "checkingUP"
 	if !settings.ValidatePaths {
-		state = "pausedDL"
+		state = "pausedUP"
 	} else if settings.ValidatePaths && pathExists {
 		state = "pausedDL"
 	}
 
 	return TorrentInfo{
-		Hash: torrent.Hash,
-
 		AddedOn:    addedOn.Unix(),
 		AmountLeft: bytesTotal - bytesDone,
 
-		// Availability: 2,
+		Availability: 2,
 
 		Category: settings.CategoryName,
 
@@ -165,25 +163,30 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		Downloaded:        bytesDone,
 		DownloadedSession: bytesDone,
 
+		Hash: torrent.Hash,
+
 		LastActivity: time.Now().Unix(),
 
 		MaxRatio:       -1,
 		MaxSeedingTime: -1,
 
-		Name: torrent.Filename,
+		Name: torrent.Hash,
 
-		// NumComplete: 10,
-		// NumLeechs: 100,
-		// NumSeeds: 100,
+		NumComplete:   10,
+		NumIncomplete: 0,
+		NumLeechs:     100,
+		NumSeeds:      100,
+
+		Priority: 999,
 
 		Progress: torrent.Progress / 100,
 
 		Ratio:      1,
 		RatioLimit: 1,
 
-		SavePath: settings.SavePath,
+		SavePath: contentPath,
 
-		// SeedingTimeLimit: 1,
+		SeedingTimeLimit: 1,
 
 		SeenComplete: time.Now().Unix(),
 
@@ -195,6 +198,8 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		TimeActive: time.Now().Unix() - addedOn.Unix(),
 
 		TotalSize: bytesTotal,
+
+		Tracker: "udp://tracker.opentrackr.org:1337",
 
 		UploadLimit:     -1,
 		Uploaded:        bytesDone,

@@ -22,8 +22,8 @@ func Listen() {
 	mux.HandleFunc(apiPath + "/auth/login", auth.Login)
 
 	// App
-	mux.HandleFunc(apiPath + "/webapiVersion", app.Version)
-	mux.HandleFunc(apiPath + "/preferences", app.Preferences)
+	mux.HandleFunc(apiPath + "/app/webapiVersion", app.Version)
+	mux.HandleFunc(apiPath + "/app/preferences", app.Preferences)
 
 	// Torrents
 	mux.HandleFunc(apiPath + "/torrents/categories", torrents.Categories)
