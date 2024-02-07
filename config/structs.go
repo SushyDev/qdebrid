@@ -4,11 +4,6 @@ type RealDebrid struct {
 	Token string `yaml:"token"`
 }
 
-type Overseerr struct {
-	Host  string `yaml:"host"`
-	Token string `yaml:"token"`
-}
-
 type Sonarr struct {
 	Host  string `yaml:"host"`
 	Token string `yaml:"token"`
@@ -25,12 +20,11 @@ type Zurg struct {
 
 type Settings struct {
 	Host          string     `yaml:"host"`
-	Port          int        `yaml:"port"`
-	CategoryName  string     `yaml:"category_name"`
-	SavePath      string     `yaml:"save_path"`
-	ValidatePaths bool       `yaml:"validate_paths"`
+	Port          int        `yaml:"port"` // 8080 by default
+	CategoryName  string     `yaml:"category_name"` // Download Client category name
+	SavePath      string     `yaml:"save_path"` // Debrid mount path (/mnt/zurg/__all__)
+	ValidatePaths bool       `yaml:"validate_paths"` // Ping zurg to check if path exists
 	RealDebrid    RealDebrid `yaml:"real_debrid"`
-	Overseerr     Overseerr  `yaml:"overseerr"`
 	Sonarr        Sonarr     `yaml:"sonarr"`
 	Radarr        Radarr     `yaml:"radarr"`
 	Zurg          Zurg       `yaml:"zurg"`

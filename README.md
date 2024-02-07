@@ -1,23 +1,15 @@
 ## Example config
 
-`config.yml`:
-```yml
-settings:
-  category_name: "debrid"
-  save_path: "/mnt/zurg/__all__" # Must use __all__
+Refer to the config struct file for available options:
+[config/structs.go](config/structs.go)
 
-  real_debrid:
-    token: ""
+## Usage
 
-  overseerr:
-    host: "http://localhost:5055"
-    token: ""
+Make sure to set your *arr host and token BEFORE trying to add the download client.
+qdebrid mocks the qbittorrent webapi so use `qBittorrent` as your download client option
 
-  sonarr:
-    host: "http://localhost:8989"
-    token: ""
+### Important
 
-  radarr:
-    host: "http://localhost:7878"
-    token: ""
-```
+Toggle off 'Remove Completed' at the bottom of the download client options
+
+Under 'Settings -> Media Management -> Importing' enable 'Import using scripts' and select the `on_import.sh` script
