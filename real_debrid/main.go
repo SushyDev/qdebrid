@@ -237,7 +237,6 @@ func AddTorrent(torrent multipart.File, files string) error {
 	default:
 		_, err := io.ReadAll(response.Body)
 		if err != nil {
-			fmt.Println("Failed to read response")
 			return err
 		}
 

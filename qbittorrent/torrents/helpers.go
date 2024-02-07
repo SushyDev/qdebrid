@@ -2,7 +2,6 @@ package torrents
 
 import (
 	"bufio"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 // ZCACHE
 var _cachedTorrents = real_debrid.TorrentsResponse{}
 
+// Return cache if date is < 5 minutes
 func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
 	if !reflect.DeepEqual(_cachedTorrents, real_debrid.TorrentsResponse{}) {
 		return _cachedTorrents, nil
@@ -62,7 +62,6 @@ type RadarrTorrent struct {
 func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrent, error) {
 	history, err := sonarr.History()
 	if err != nil {
-		fmt.Println("Failed to fetch history")
 		return nil, err
 	}
 
@@ -93,7 +92,6 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrent, error) {
 	history, err := radarr.History()
 	if err != nil {
-		fmt.Println("Failed to fetch history")
 		return nil, err
 	}
 

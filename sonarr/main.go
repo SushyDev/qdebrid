@@ -20,7 +20,7 @@ func History() (HistoryResponse, error) {
 
 	url.Path += apiPath + "/history"
 	url.Query().Add("eventType", "1")
-	url.Query().Add("pageSize", "-1")
+	url.Query().Add("pageSize", "250") // TODO
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
