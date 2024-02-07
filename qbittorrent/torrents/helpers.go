@@ -15,10 +15,13 @@ import (
 
 // ZCACHE
 var _cachedTorrents = real_debrid.TorrentsResponse{}
+var _cachedTorrentsTime = time.Now()
 
 // Return cache if date is < 5 minutes
 func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
-	if !reflect.DeepEqual(_cachedTorrents, real_debrid.TorrentsResponse{}) {
+	cacheInvalid := time.Now().Sub(_cachedTorrentsTime) > 5 * time.Minute
+
+	if !reflect.DeepEqual(_cachedTorrents, real_debrid.TorrentsResponse{}) && !cacheInvalid {
 		return _cachedTorrents, nil
 	}
 
@@ -28,6 +31,7 @@ func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
 	}
 
 	_cachedTorrents = torrents
+	_cachedTorrentsTime = time.Now()
 
 	return _cachedTorrents, nil
 }
