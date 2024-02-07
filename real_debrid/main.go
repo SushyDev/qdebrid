@@ -27,7 +27,6 @@ func InstantAvailability(hash string) (InstantAvailabilityResponse, error) {
 	
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return InstantAvailabilityResponse{}, err
 	}
 
@@ -37,7 +36,6 @@ func InstantAvailability(hash string) (InstantAvailabilityResponse, error) {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return InstantAvailabilityResponse{}, err
 	}
 
@@ -48,7 +46,6 @@ func InstantAvailability(hash string) (InstantAvailabilityResponse, error) {
 		var instantAvailability = InstantAvailabilityResponse{}
 		err = json.NewDecoder(response.Body).Decode(&instantAvailability)
 		if err != nil {
-			fmt.Println("Failed to decode response")
 			return InstantAvailabilityResponse{}, err
 		}
 
@@ -71,7 +68,6 @@ func Torrents() (TorrentsResponse, error) {
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return TorrentsResponse{}, err
 	}
 
@@ -81,7 +77,6 @@ func Torrents() (TorrentsResponse, error) {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return TorrentsResponse{}, err
 	}
 
@@ -92,7 +87,6 @@ func Torrents() (TorrentsResponse, error) {
 		var torrents = TorrentsResponse{}
 		err = json.NewDecoder(response.Body).Decode(&torrents)
 		if err != nil {
-			fmt.Println("Failed to decode response")
 			return TorrentsResponse{}, err
 		}
 
@@ -112,7 +106,6 @@ func TorrentInfo(infoHash string) (TorrentInfoResponse, error) {
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return TorrentInfoResponse{}, err
 	}
 
@@ -122,7 +115,6 @@ func TorrentInfo(infoHash string) (TorrentInfoResponse, error) {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return TorrentInfoResponse{}, err
 	}
 
@@ -133,7 +125,6 @@ func TorrentInfo(infoHash string) (TorrentInfoResponse, error) {
 		var torrentInfo = TorrentInfoResponse{}
 		err = json.NewDecoder(response.Body).Decode(&torrentInfo)
 		if err != nil {
-			fmt.Println("Failed to decode response")
 			return TorrentInfoResponse{}, err
 		}
 
@@ -159,7 +150,6 @@ func AddMagnet(magnet string, files string) error {
 
 	req, err := http.NewRequest("POST", url.String(), bytes.NewBufferString(requestBody))
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return err
 	}
 
@@ -170,7 +160,6 @@ func AddMagnet(magnet string, files string) error {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return err
 	}
 
@@ -181,7 +170,6 @@ func AddMagnet(magnet string, files string) error {
 		var data AddMagnetResponse
 		err = json.NewDecoder(response.Body).Decode(&data)
 		if err != nil {
-			fmt.Println("Failed to decode response")
 			return err
 		}
 
@@ -197,13 +185,10 @@ func AddMagnet(magnet string, files string) error {
 	case 504:
 		return fmt.Errorf("Service timeout (see error message)")
 	default:
-		body, err := io.ReadAll(response.Body)
+		_, err := io.ReadAll(response.Body)
 		if err != nil {
-			fmt.Println("Failed to read response body")
 			return err
 		}
-
-		fmt.Println(string(body))
 
 		return fmt.Errorf("[%v] Unknown error", response.StatusCode)
 	}
@@ -215,7 +200,6 @@ func AddTorrent(torrent multipart.File, files string) error {
 
 	req, err := http.NewRequest("PUT", url.String(), torrent)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return err
 	}
 
@@ -226,7 +210,6 @@ func AddTorrent(torrent multipart.File, files string) error {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return err
 	}
 
@@ -237,7 +220,6 @@ func AddTorrent(torrent multipart.File, files string) error {
 		var data AddMagnetResponse
 		err = json.NewDecoder(response.Body).Decode(&data)
 		if err != nil {
-			fmt.Println("Failed to decode response")
 			return err
 		}
 
@@ -253,13 +235,11 @@ func AddTorrent(torrent multipart.File, files string) error {
 	case 504:
 		return fmt.Errorf("Service timeout (see error message)")
 	default:
-		body, err := io.ReadAll(response.Body)
+		_, err := io.ReadAll(response.Body)
 		if err != nil {
 			fmt.Println("Failed to read response")
 			return err
 		}
-
-		fmt.Println(string(body))
 
 		return fmt.Errorf("[%v] Unknown error", response.StatusCode)
 	}
@@ -272,7 +252,6 @@ func Delete(id string) error {
 
 	req, err := http.NewRequest("DELETE", url.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return err
 	}
 
@@ -283,7 +262,6 @@ func Delete(id string) error {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return err
 	}
 
@@ -313,7 +291,6 @@ func selectFiles(id string, files string) error {
 	requestBody := input.Encode()
 	req, err := http.NewRequest("POST", url.String(), bytes.NewBufferString(requestBody))
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return err
 	}
 
@@ -324,7 +301,6 @@ func selectFiles(id string, files string) error {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return err
 	}
 

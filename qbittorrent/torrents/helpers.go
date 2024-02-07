@@ -9,9 +9,28 @@ import (
 	"qdebrid/radarr"
 	"qdebrid/real_debrid"
 	"qdebrid/sonarr"
+	"reflect"
 	"strings"
 	"time"
 )
+
+// ZCACHE
+var _cachedTorrents = real_debrid.TorrentsResponse{}
+
+func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
+	if !reflect.DeepEqual(_cachedTorrents, real_debrid.TorrentsResponse{}) {
+		return _cachedTorrents, nil
+	}
+
+	torrents, err := real_debrid.Torrents()
+	if err != nil {
+		return real_debrid.TorrentsResponse{}, err
+	}
+
+	_cachedTorrents = torrents
+
+	return _cachedTorrents, nil
+}
 
 func SplitString(s string, sep string) []string {
 	reader := strings.NewReader(s)
@@ -141,7 +160,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	if !settings.ValidatePaths {
 		state = "pausedUP"
 	} else if settings.ValidatePaths && pathExists {
-		state = "pausedDL"
+		state = "pausedUP"
 	}
 
 	return TorrentInfo{
@@ -170,7 +189,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		MaxRatio:       -1,
 		MaxSeedingTime: -1,
 
-		Name: torrent.Hash,
+		Name: torrent.Filename,
 
 		NumComplete:   10,
 		NumIncomplete: 0,

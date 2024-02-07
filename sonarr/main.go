@@ -15,7 +15,7 @@ var settings = config.GetSettings()
 func History() (HistoryResponse, error) {
 	url, err := url.Parse(settings.Sonarr.Host)
 	if err != nil {
-		return HistoryResponse{}, fmt.Errorf("Invalid Sonarr URL")
+		return HistoryResponse{}, err
 	}
 
 	url.Path += apiPath + "/history"
@@ -24,7 +24,6 @@ func History() (HistoryResponse, error) {
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		fmt.Println("Failed to create request")
 		return HistoryResponse{}, err
 	}
 
@@ -34,21 +33,18 @@ func History() (HistoryResponse, error) {
 
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to send request")
 		return HistoryResponse{}, err
 	}
 
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		fmt.Println("Failed to fetch history")
 		return HistoryResponse{}, fmt.Errorf("Failed to fetch history")
 	}
 
 	var data = HistoryResponse{}
 	err = json.NewDecoder(response.Body).Decode(&data)
 	if err != nil {
-		fmt.Println("Failed to decode response")
 		return HistoryResponse{}, err
 	}
 

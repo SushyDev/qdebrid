@@ -2,7 +2,6 @@ package torrents
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"path/filepath"
 	"qdebrid/config"
@@ -14,18 +13,20 @@ import (
 
 var settings = config.GetSettings()
 
-// ZCACHE
-var cachedTorrents = real_debrid.TorrentsResponse{}
-
 func Delete(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Error parsing form", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	hash := r.FormValue("hashes")
+
+	cachedTorrents, err := getCachedTorrents()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	var torrent = real_debrid.Torrent{}
 	for _, t := range cachedTorrents {
@@ -41,7 +42,7 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := real_debrid.Delete(torrent.ID); err != nil {
-		http.Error(w, "Error deleting torrent", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
@@ -56,7 +57,7 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(categories)
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -66,6 +67,12 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 
 func Properties(w http.ResponseWriter, r *http.Request) {
 	hash := r.URL.Query().Get("hash")
+
+	cachedTorrents, err := getCachedTorrents()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	var cachedTorrent = real_debrid.Torrent{}
 	for _, torrent := range cachedTorrents {
@@ -84,7 +91,7 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 
 	addedOn, err := time.Parse(time.RFC3339Nano, cachedTorrent.Added)
 	if err != nil {
-		http.Error(w, "Error parsing date", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -125,7 +132,7 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(properties)
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -137,6 +144,12 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 func Files(w http.ResponseWriter, r *http.Request) {
 	hash := r.URL.Query().Get("hash")
 
+	cachedTorrents, err := getCachedTorrents()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	var id string
 	for _, torrent := range cachedTorrents {
 		if torrent.Hash == hash {
@@ -147,7 +160,6 @@ func Files(w http.ResponseWriter, r *http.Request) {
 
 	torrent, err := real_debrid.TorrentInfo(id)
 	if err != nil {
-		fmt.Println("Error fetching torrent")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -166,7 +178,7 @@ func Files(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(files)
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -178,17 +190,15 @@ func Files(w http.ResponseWriter, r *http.Request) {
 func Info(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	torrents, err := real_debrid.Torrents()
+	cachedTorrents, err := getCachedTorrents()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	cachedTorrents = torrents
-
 	userAgent := strings.Split(r.UserAgent(), "/")[0]
 
-		torrentInfos := []TorrentInfo{}
+	torrentInfos := []TorrentInfo{}
 	switch userAgent {
 	case "Radarr":
 		historyMatches, err := RadarrTorrents(userAgent, cachedTorrents)
@@ -222,7 +232,7 @@ func Info(w http.ResponseWriter, r *http.Request) {
 
 	jsonData, err := json.Marshal(torrentInfos)
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -238,16 +248,14 @@ func Add(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseMultipartForm(0)
 	if err != nil {
-		fmt.Println(err)
-		http.Error(w, "Error parsing form", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	urls := r.FormValue("urls")
 	for _, url := range SplitString(urls, "\n") {
 		if err := real_debrid.AddMagnet(url, "all"); err != nil {
-			fmt.Println(err)
-			http.Error(w, "Error adding magnet", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -256,14 +264,12 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	for _, header := range torrentHeaders {
 		torrent, err := header.Open()
 		if err != nil {
-			fmt.Println(err)
-			http.Error(w, "Error opening form file", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
-			fmt.Println(err)
-			http.Error(w, "Error adding torrent", http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
