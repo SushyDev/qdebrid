@@ -149,6 +149,42 @@ func PathExists(path string) (bool, error) {
 }
 
 func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
+	var state string
+	switch torrent.Status {
+	case "magnet_error":
+		state = "error"
+	case "magnet_conversion":
+		state = "checkingUP"
+	case "waiting_files_selection":
+		state = "pausedUP"
+	case "queued":
+		state = "pausedUP"
+	case "downloading":
+		state = "downloading"
+	case "downloaded":
+		state = "pausedUP"
+	case "error":
+		state = "error"
+	case "virus":
+		state = "error"
+	case "compressing":
+		state = "pausedUP"
+	case "uploading":
+		state = "uploading"
+	case "dead":
+		state = "error"
+	default:
+		state = "checkingUP"
+	}
+
+	pathExists, _ := PathExists(torrent.Filename)
+	if state == "pausedUP" {
+		if !settings.ValidatePaths {
+		} else if settings.ValidatePaths && pathExists {
+			state = "pausedUP"
+		}
+	}
+
 	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
 
 	contentPath := filepath.Join(settings.SavePath, torrent.Filename)
@@ -156,13 +192,14 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
 
-	pathExists, _ := PathExists(torrent.Filename)
+	var speed int64
+	if torrent.Speed != 0 {
+		speed = int64(torrent.Speed)
+	}
 
-	state := "checkingUP"
-	if !settings.ValidatePaths {
-		state = "pausedUP"
-	} else if settings.ValidatePaths && pathExists {
-		state = "pausedUP"
+	var eta int64
+	if speed != 0 {
+		eta = (bytesTotal - bytesDone) / speed
 	}
 
 	return TorrentInfo{
@@ -179,7 +216,9 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		ContentPath: contentPath,
 
 		DownloadLimit: -1,
-		// DownloadSpeed:
+		DownloadSpeed: speed,
+
+		ETA: eta,
 
 		Downloaded:        bytesDone,
 		DownloadedSession: bytesDone,
@@ -213,7 +252,6 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		Size: bytesTotal,
 
-		// use fs to check if direcotry exists and set state between pending and pausedUP
 		State: state,
 
 		TimeActive: time.Now().Unix() - addedOn.Unix(),
@@ -225,6 +263,5 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		UploadLimit:     -1,
 		Uploaded:        bytesDone,
 		UploadedSession: bytesDone,
-		// UploadSpeed:
 	}
 }

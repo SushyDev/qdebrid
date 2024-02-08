@@ -20,6 +20,8 @@ type Torrent struct {
 	Added    string   `json:"added"`
 	Links    []string `json:"links"`
 	Ended    string   `json:"ended"`
+	Speed    int      `json:"speed"`
+	Seeders  int      `json:"seeders"`
 }
 
 type TorrentsResponse []Torrent
@@ -32,20 +34,20 @@ type File struct {
 }
 
 type TorrentInfoResponse struct {
-	ID               string    `json:"id"`
-	Filename         string    `json:"filename"`
-	OriginalFilename string    `json:"original_filename"`
-	Hash             string    `json:"hash"`
-	Bytes            int       `json:"bytes"`
-	OriginalBytes    int       `json:"original_bytes"`
-	Host             string    `json:"host"`
-	Split            int       `json:"split"`
-	Progress         int       `json:"progress"`
-	Status           string    `json:"status"`
-	Added            string    `json:"added"`
-	Files            []File    `json:"files"`
-	Links            []string  `json:"links"`
-	Ended            string    `json:"ended,omitempty"`
-	Speed            int       `json:"speed,omitempty"`
-	Seeders          int       `json:"seeders,omitempty"`
+	ID               string   `json:"id"`
+	Filename         string   `json:"filename"`
+	OriginalFilename string   `json:"original_filename"`
+	Hash             string   `json:"hash"`
+	Bytes            int      `json:"bytes"`
+	OriginalBytes    int      `json:"original_bytes"`
+	Host             string   `json:"host"`
+	Split            int      `json:"split"`
+	Progress         int      `json:"progress"`
+	Status           string   `json:"status"`
+	Added            string   `json:"added"`
+	Files            []File   `json:"files"`
+	Links            []string `json:"links"`
+	Ended            string   `json:"ended,omitempty"`
+	Speed            int      `json:"speed,omitempty"`
+	Seeders          int      `json:"seeders,omitempty"`
 }
