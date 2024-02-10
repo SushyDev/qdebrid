@@ -10,4 +10,6 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build main.go
 
-CMD ["/app/main"]
+RUN find . -mindepth 1 ! -name main ! -path './scripts*' -exec rm -rf {} +
+
+CMD rm -rf /mnt/scripts/* && cp -r scripts /mnt/scripts && /app/main
