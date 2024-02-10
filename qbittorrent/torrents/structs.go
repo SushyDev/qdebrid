@@ -27,9 +27,9 @@ type PropertiesResponse struct {
 	AdditionDate           int64   `json:"addition_date"`
 	CompletionDate         int64   `json:"completion_date"`
 	CreatedBy              string  `json:"created_by"`
-	DownloadSpeedAverage   int     `json:"dl_speed_avg"`
-	DownloadSpeed          int     `json:"dl_speed"`
-	ETA                    int     `json:"eta"`
+	DownloadSpeedAverage   int64   `json:"dl_speed_avg"`
+	DownloadSpeed          int64   `json:"dl_speed"`
+	ETA                    int64   `json:"eta"`
 	LastSeen               int64   `json:"last_seen"`
 	Peers                  int     `json:"peers"`
 	PeersTotal             int     `json:"peers_total"`

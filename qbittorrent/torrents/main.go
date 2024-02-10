@@ -3,12 +3,10 @@ package torrents
 import (
 	"encoding/json"
 	"net/http"
-	"path/filepath"
 	"qdebrid/config"
 	"qdebrid/real_debrid"
 	"reflect"
 	"strings"
-	"time"
 )
 
 var settings = config.GetSettings()
@@ -49,9 +47,9 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 
 func Categories(w http.ResponseWriter, r *http.Request) {
 	categories := QBitTorrentCategories{
-		settings.CategoryName: QBitTorrentCategory{
-			Name:     settings.CategoryName,
-			SavePath: settings.SavePath,
+		settings.QDebrid.CategoryName: QBitTorrentCategory{
+			Name:     settings.QDebrid.CategoryName,
+			SavePath: settings.QDebrid.SavePath,
 		},
 	}
 
@@ -87,50 +85,9 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentPath := filepath.Join(settings.SavePath, cachedTorrent.Filename)
+	torrentInfo := GetTorrentInfo(cachedTorrent)
 
-	addedOn, err := time.Parse(time.RFC3339Nano, cachedTorrent.Added)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	properties := PropertiesResponse{
-		AdditionDate: time.Now().Unix(),
-
-		CompletionDate: time.Now().Unix(),
-		CreationDate:   addedOn.Unix(),
-
-		DownloadLimit: -1,
-		// DownloadSpeed:
-		// DownloadSpeedAverage
-
-		LastSeen:  time.Now().Unix(),
-		PieceSize: cachedTorrent.Bytes,
-		// PiecesHave:
-		// PiecesNumber:
-
-		SavePath: contentPath,
-
-		SeedingTime: 1,
-		Seeds:       100,
-		SeedsTotal:  100,
-		ShareRatio:  9999,
-
-		TimeElapsed: time.Now().Unix() - addedOn.Unix(),
-
-		TotalDownloaded:        int64(cachedTorrent.Bytes),
-		TotalDownloadedSession: int64(cachedTorrent.Bytes),
-		TotalSize:              int64(cachedTorrent.Bytes),
-		TotalUploaded:          int64(cachedTorrent.Bytes),
-		TotalUploadedSession:   int64(cachedTorrent.Bytes),
-
-		UploadLimit: -1,
-		// UploadSpeed:
-		// UploadSpeedAverage:
-	}
-
-	jsonData, err := json.Marshal(properties)
+	jsonData, err := json.Marshal(torrentInfo)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -246,7 +203,9 @@ func Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch r.Header.Get("Content-Type") {
+	contentType := strings.Split(r.Header.Get("Content-Type"), ";")[0]
+
+	switch contentType {
 	case "multipart/form-data":
 		err := r.ParseMultipartForm(0)
 		if err != nil {
@@ -272,7 +231,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-		} 
+		}
 
 		if strings.HasPrefix(url, "http") {
 			torrent, err := GetTorrent(url)

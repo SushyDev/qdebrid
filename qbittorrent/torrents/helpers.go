@@ -20,7 +20,14 @@ var _cachedTorrentsTime = time.Now()
 
 // Return cache if date is < 5 minutes
 func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
-	cacheInvalid := time.Now().Sub(_cachedTorrentsTime) > 5 * time.Minute
+	passed := time.Now().Sub(_cachedTorrentsTime)
+
+	cacheTTL, err := time.ParseDuration(settings.QDebrid.ResponseCacheTTL)
+	if err != nil {
+		return real_debrid.TorrentsResponse{}, err
+	}
+
+	cacheInvalid := passed > cacheTTL
 
 	if !reflect.DeepEqual(_cachedTorrents, real_debrid.TorrentsResponse{}) && !cacheInvalid {
 		return _cachedTorrents, nil
@@ -126,7 +133,7 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 
 func PathExists(path string) (bool, error) {
 	url, _ := url.Parse(settings.Zurg.Host)
-	url.Path += "/http/__all__/" + path + "/"
+	url.Path += "/dav/__all__/" + path + "/"
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
@@ -180,15 +187,15 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 	pathExists, _ := PathExists(torrent.Filename)
 	if state == "pausedUP" {
-		if !settings.ValidatePaths {
-		} else if settings.ValidatePaths && pathExists {
+		if !settings.QDebrid.ValidatePaths {
+		} else if settings.QDebrid.ValidatePaths && pathExists {
 			state = "pausedUP"
 		}
 	}
 
 	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
 
-	contentPath := filepath.Join(settings.SavePath, torrent.Filename)
+	contentPath := filepath.Join(settings.QDebrid.SavePath, torrent.Filename)
 
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
@@ -209,7 +216,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		Availability: 2,
 
-		Category: settings.CategoryName,
+		Category: settings.QDebrid.CategoryName,
 
 		Completed:    bytesDone,
 		CompletionOn: addedOn.Unix(),

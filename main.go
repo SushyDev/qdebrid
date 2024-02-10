@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	qbittorrent.Listen();
+	qbittorrent.Listen()
 }
