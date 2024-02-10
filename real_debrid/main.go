@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"qdebrid/config"
@@ -194,7 +193,7 @@ func AddMagnet(magnet string, files string) error {
 	}
 }
 
-func AddTorrent(torrent multipart.File, files string) error {
+func AddTorrent(torrent io.Reader, files string) error {
 	url, _ := url.Parse(apiHost)
 	url.Path += apiPath + "/torrents/addTorrent"
 

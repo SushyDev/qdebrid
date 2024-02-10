@@ -246,31 +246,62 @@ func Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := r.ParseMultipartForm(0)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	urls := r.FormValue("urls")
-	for _, url := range SplitString(urls, "\n") {
-		if err := real_debrid.AddMagnet(url, "all"); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	torrentHeaders := r.MultipartForm.File["torrents"]
-	for _, header := range torrentHeaders {
-		torrent, err := header.Open()
+	switch r.Header.Get("Content-Type") {
+	case "multipart/form-data":
+		err := r.ParseMultipartForm(0)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
+	case "application/x-www-form-urlencoded":
+		err := r.ParseForm()
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+	default:
+		http.Error(w, "Invalid Content-Type", http.StatusInternalServerError)
+		return
+	}
+
+	urls := r.FormValue("urls")
+
+	for _, url := range SplitString(urls, "\n") {
+		if strings.HasPrefix(url, "magnet") {
+			if err := real_debrid.AddMagnet(url, "all"); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} 
+
+		if strings.HasPrefix(url, "http") {
+			torrent, err := GetTorrent(url)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	if r.Header.Get("Content-Type") == "multipart/form-data" {
+		torrentHeaders := r.MultipartForm.File["torrents"]
+
+		for _, header := range torrentHeaders {
+			torrent, err := header.Open()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 

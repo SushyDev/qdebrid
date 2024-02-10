@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"bufio"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -58,11 +59,6 @@ type SonarrTorrent struct {
 	Torrent real_debrid.Torrent
 }
 
-type RadarrTorrent struct {
-	History radarr.Record
-	Torrent real_debrid.Torrent
-}
-
 func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrent, error) {
 	history, err := sonarr.History()
 	if err != nil {
@@ -91,6 +87,11 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 	}
 
 	return sonarrTorrents, nil
+}
+
+type RadarrTorrent struct {
+	History radarr.Record
+	Torrent real_debrid.Torrent
 }
 
 func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrent, error) {
@@ -264,4 +265,26 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		Uploaded:        bytesDone,
 		UploadedSession: bytesDone,
 	}
+}
+
+func GetTorrent(url string) (io.Reader, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{}
+
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, err
+	}
+
+	return response.Body, nil
 }
