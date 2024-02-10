@@ -70,7 +70,7 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 	}
 
 	var sonarrTorrents []SonarrTorrent
-	for _, record := range history.Records {
+	for _, record := range history {
 	torrents:
 		for _, torrent := range torrents {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {
@@ -100,7 +100,7 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 	}
 
 	var radarrTorrents []RadarrTorrent
-	for _, record := range history.Records {
+	for _, record := range history {
 	torrents:
 		for _, torrent := range torrents {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {

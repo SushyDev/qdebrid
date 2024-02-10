@@ -2,6 +2,8 @@ package sonarr
 
 import "time"
 
+type HistorySinceResponse []Record
+
 type HistoryResponse struct {
 	Page          int      `json:"page"`
 	PageSize      int      `json:"pageSize"`

@@ -19,7 +19,7 @@ type Zurg struct {
 }
 
 type Settings struct {
-	Host          string     `yaml:"host"`
+	Host          string     `yaml:"host"` // Optional
 	Port          int        `yaml:"port"` // 8080 by default
 	CategoryName  string     `yaml:"category_name"` // Download Client category name
 	SavePath      string     `yaml:"save_path"` // Debrid mount path (/mnt/zurg/__all__)

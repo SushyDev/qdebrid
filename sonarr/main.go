@@ -12,19 +12,19 @@ var apiPath = "/api/v3"
 
 var settings = config.GetSettings()
 
-func History() (HistoryResponse, error) {
+func History() (HistorySinceResponse, error) {
 	url, err := url.Parse(settings.Sonarr.Host)
 	if err != nil {
-		return HistoryResponse{}, err
+		return HistorySinceResponse{}, err
 	}
 
-	url.Path += apiPath + "/history"
+	url.Path += apiPath + "/history/since"
+	url.Query().Add("date", "1970-01-01")
 	url.Query().Add("eventType", "1")
-	url.Query().Add("pageSize", "250") // TODO
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		return HistoryResponse{}, err
+		return HistorySinceResponse{}, err
 	}
 
 	req.Header.Set("X-Api-Key", settings.Sonarr.Token)
@@ -33,19 +33,19 @@ func History() (HistoryResponse, error) {
 
 	response, err := client.Do(req)
 	if err != nil {
-		return HistoryResponse{}, err
+		return HistorySinceResponse{}, err
 	}
 
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		return HistoryResponse{}, fmt.Errorf("Failed to fetch history")
+		return HistorySinceResponse{}, fmt.Errorf("Failed to fetch history")
 	}
 
-	var data = HistoryResponse{}
+	var data = HistorySinceResponse{}
 	err = json.NewDecoder(response.Body).Decode(&data)
 	if err != nil {
-		return HistoryResponse{}, err
+		return HistorySinceResponse{}, err
 	}
 
 	return data, nil
