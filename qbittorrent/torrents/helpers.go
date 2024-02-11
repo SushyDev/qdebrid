@@ -171,7 +171,7 @@ func GetTorrent(url string) (io.Reader, error) {
 
 func PathExists(path string) (bool, error) {
 	url, _ := url.Parse(settings.Zurg.Host)
-	url.Path += "/dav/__all__/" + path + "/"
+	url.Path += "/http/__all__/" + path + "/"
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
