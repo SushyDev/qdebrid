@@ -26,8 +26,7 @@ func TorrentInfo(id string) (TorrentInfoResponse, error) {
 	switch response.StatusCode {
 	case 200:
 		var torrentInfo = TorrentInfoResponse{}
-		err = json.NewDecoder(response.Body).Decode(&torrentInfo)
-		if err != nil {
+		if err := json.NewDecoder(response.Body).Decode(&torrentInfo); err != nil {
 			return TorrentInfoResponse{}, err
 		}
 

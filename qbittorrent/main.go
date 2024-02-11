@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"qdebrid/config"
+	"qdebrid/logger"
 	"qdebrid/qbittorrent/app"
 	"qdebrid/qbittorrent/auth"
 	"qdebrid/qbittorrent/torrents"
@@ -14,6 +15,8 @@ var apiPath = "/api/v2"
 var settings = config.GetSettings()
 
 func Listen() {
+	sugar := logger.Sugar()
+
 	mux := http.NewServeMux()
 
 	// Auth
@@ -44,5 +47,6 @@ func Listen() {
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 
+	sugar.Info("Listening on ", addr)
 	http.ListenAndServe(addr, mux)
 }

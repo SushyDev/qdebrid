@@ -26,31 +26,28 @@ func AddTorrent(torrent io.Reader, files string) error {
 
 	defer response.Body.Close()
 
+	err = nil
 	switch response.StatusCode {
 	case 201:
 		var data AddMagnetResponse
-		err = json.NewDecoder(response.Body).Decode(&data)
-		if err != nil {
+		if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
 			return err
 		}
 
-		return selectFiles(data.Id)
+		err = selectFiles(data.Id)
 	case 400:
-		return fmt.Errorf("Bad Request (see error message)")
+		err = fmt.Errorf("Bad Request (see error message)")
 	case 401:
-		return fmt.Errorf("Bad token (expired, invalid)")
+		err = fmt.Errorf("Bad token (expired, invalid)")
 	case 403:
-		return fmt.Errorf("Permission denied (account locked, not premium) or Infringing torrent")
+		err = fmt.Errorf("Permission denied (account locked, not premium) or Infringing torrent")
 	case 503:
-		return fmt.Errorf("Service unavailable (see error message)")
+		err = fmt.Errorf("Service unavailable (see error message)")
 	case 504:
-		return fmt.Errorf("Service timeout (see error message)")
+		err = fmt.Errorf("Service timeout (see error message)")
 	default:
-		_, err := io.ReadAll(response.Body)
-		if err != nil {
-			return err
-		}
-
-		return fmt.Errorf("[%v] Unknown error", response.StatusCode)
+		err = fmt.Errorf("[%v] Unknown error", response.StatusCode)
 	}
+
+	return err
 }

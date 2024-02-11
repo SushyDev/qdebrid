@@ -1,11 +1,15 @@
 package torrents
 
-type QBitTorrentCategory struct {
+import (
+	"qdebrid/radarr"
+	"qdebrid/real_debrid"
+	"qdebrid/sonarr"
+)
+
+type Category struct {
 	Name     string `json:"name"`
 	SavePath string `json:"savePath"`
 }
-
-type QBitTorrentCategories map[string]QBitTorrentCategory
 
 type PropertiesResponse struct {
 	SavePath               string  `json:"save_path"`
@@ -125,22 +129,12 @@ type TorrentInfo struct {
 	UploadSpeed        int64   `json:"upspeed"`
 }
 
-type AddRequest struct {
-	Urls     string `json:"urls"`
-	Torrents string `json:"torrents"`
-	SavePath string `json:"savepath"`
-	Cookie   string `json:"cookie"`
-	Category string `json:"category"`
-	Tags     string `json:"tags"`
-	// SkipChecking string `json:"skip_checking"`
-	// Paused       string `json:"paused"`
-	// RootFolder   string `json:"root_folder"`
-	Rename string `json:"rename"`
-	// UpLimit      int    `json:"upLimit"`
-	// DlLimit      int    `json:"dlLimit"`
-	// RatioLimit   float64 `json:"ratioLimit"`
-	// SeedingTimeLimit int `json:"seedingTimeLimit"`
-	// AutoTMM      bool   `json:"autoTMM"`
-	// SequentialDownload string `json:"sequentialDownload"`
-	// FirstLastPiecePrio string `json:"firstLastPiecePrio"`
+type SonarrTorrentMatch struct {
+	History sonarr.Record
+	Torrent real_debrid.Torrent
+}
+
+type RadarrTorrentMatch struct {
+	History radarr.Record
+	Torrent real_debrid.Torrent
 }

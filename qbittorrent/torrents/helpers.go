@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,11 +15,9 @@ import (
 	"time"
 )
 
-// ZCACHE
 var _cachedTorrents = real_debrid.TorrentsResponse{}
 var _cachedTorrentsTime = time.Now()
 
-// Return cache if date is < 5 minutes
 func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
 	passed := time.Now().Sub(_cachedTorrentsTime)
 
@@ -44,6 +43,33 @@ func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
 	return _cachedTorrents, nil
 }
 
+func ClearCachedTorrents() {
+	sugar.Debug("Cleared cached torrents")
+
+	_cachedTorrents = real_debrid.TorrentsResponse{}
+}
+
+func FindCachedTorrent(hash string) (real_debrid.Torrent, error) {
+	cachedTorrents, err := getCachedTorrents()
+	if err != nil {
+		return real_debrid.Torrent{}, err
+	}
+
+	var torrent = real_debrid.Torrent{}
+	for _, t := range cachedTorrents {
+		if t.Hash == hash {
+			torrent = t
+			break
+		}
+	}
+
+	if reflect.DeepEqual(torrent, real_debrid.Torrent{}) {
+		return real_debrid.Torrent{}, fmt.Errorf("Couldn't find hash in cached torrents")
+	}
+
+	return torrent, nil
+}
+
 func SplitString(s string, sep string) []string {
 	reader := strings.NewReader(s)
 	scanner := bufio.NewScanner(reader)
@@ -61,18 +87,13 @@ func SplitString(s string, sep string) []string {
 	return result
 }
 
-type SonarrTorrent struct {
-	History sonarr.Record
-	Torrent real_debrid.Torrent
-}
-
-func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrent, error) {
+func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrentMatch, error) {
 	history, err := sonarr.History()
 	if err != nil {
 		return nil, err
 	}
 
-	var sonarrTorrents []SonarrTorrent
+	var sonarrTorrents []SonarrTorrentMatch
 	for _, record := range history {
 	torrents:
 		for _, torrent := range torrents {
@@ -83,7 +104,7 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 					}
 				}
 
-				sonarrTorrent := SonarrTorrent{
+				sonarrTorrent := SonarrTorrentMatch{
 					History: record,
 					Torrent: torrent,
 				}
@@ -96,18 +117,13 @@ func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrT
 	return sonarrTorrents, nil
 }
 
-type RadarrTorrent struct {
-	History radarr.Record
-	Torrent real_debrid.Torrent
-}
-
-func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrent, error) {
+func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrentMatch, error) {
 	history, err := radarr.History()
 	if err != nil {
 		return nil, err
 	}
 
-	var radarrTorrents []RadarrTorrent
+	var radarrTorrents []RadarrTorrentMatch
 	for _, record := range history {
 	torrents:
 		for _, torrent := range torrents {
@@ -118,7 +134,7 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 					}
 				}
 
-				radarrTorrent := RadarrTorrent{
+				radarrTorrent := RadarrTorrentMatch{
 					History: record,
 					Torrent: torrent,
 				}
@@ -129,6 +145,28 @@ func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrT
 	}
 
 	return radarrTorrents, nil
+}
+
+func GetTorrent(url string) (io.Reader, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{}
+
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, err
+	}
+
+	return response.Body, nil
 }
 
 func PathExists(path string) (bool, error) {
@@ -186,11 +224,8 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	}
 
 	pathExists, _ := PathExists(torrent.Filename)
-	if state == "pausedUP" {
-		if !settings.QDebrid.ValidatePaths {
-		} else if settings.QDebrid.ValidatePaths && pathExists {
-			state = "pausedUP"
-		}
+	if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
+		state = "checkingUP"
 	}
 
 	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
@@ -214,7 +249,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		AddedOn:    addedOn.Unix(),
 		AmountLeft: bytesTotal - bytesDone,
 
-		Availability: 2,
+		// Availability: 2,
 
 		Category: settings.QDebrid.CategoryName,
 
@@ -223,7 +258,7 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		ContentPath: contentPath,
 
-		DownloadLimit: -1,
+		// DownloadLimit: -1,
 		DownloadSpeed: speed,
 
 		ETA: eta,
@@ -235,26 +270,26 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		LastActivity: time.Now().Unix(),
 
-		MaxRatio:       -1,
-		MaxSeedingTime: -1,
+		// MaxRatio:       -1,
+		// MaxSeedingTime: -1,
 
 		Name: torrent.Filename,
 
-		NumComplete:   10,
-		NumIncomplete: 0,
-		NumLeechs:     100,
-		NumSeeds:      100,
+		// NumComplete:   10,
+		// NumIncomplete: 0,
+		// NumLeechs:     100,
+		// NumSeeds:      100,
 
-		Priority: 999,
+		// Priority: 999,
 
 		Progress: torrent.Progress / 100,
 
-		Ratio:      1,
-		RatioLimit: 1,
+		// Ratio:      1,
+		// RatioLimit: 1,
 
 		SavePath: contentPath,
 
-		SeedingTimeLimit: 1,
+		// SeedingTimeLimit: 1,
 
 		SeenComplete: time.Now().Unix(),
 
@@ -266,32 +301,10 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 
 		TotalSize: bytesTotal,
 
-		Tracker: "udp://tracker.opentrackr.org:1337",
+		// Tracker: "udp://tracker.opentrackr.org:1337",
 
-		UploadLimit:     -1,
-		Uploaded:        bytesDone,
-		UploadedSession: bytesDone,
+		// UploadLimit:     -1,
+		// Uploaded:        bytesDone,
+		// UploadedSession: bytesDone,
 	}
-}
-
-func GetTorrent(url string) (io.Reader, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	client := &http.Client{}
-
-	response, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, err
-	}
-
-	return response.Body, nil
 }

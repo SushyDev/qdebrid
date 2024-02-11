@@ -1,5 +1,22 @@
 package config
 
+type QDebrid struct {
+	Host string `yaml:"host" default:""`
+	Port int    `yaml:"port" default:"8080"`
+
+	ResponseCacheTTL string `yaml:"response_cache_ttl" default:"5m"`
+
+	CategoryName string `yaml:"category_name" default:"qdebrid"`
+	SavePath     string `yaml:"save_path" default:"/mnt/zurg/__all__"`
+
+	ValidatePaths bool `yaml:"validate_paths" default:"true"`
+
+	AllowUncached    bool     `yaml:"allow_uncached" default:"false"`
+	AllowedFileTypes []string `yaml:"allowed_file_types" default:"[mkv, mp4]"`
+
+	LogLevel string `yaml:"log_level" default:"info"`
+}
+
 type RealDebrid struct {
 	Token string `yaml:"token"`
 }
@@ -16,21 +33,6 @@ type Radarr struct {
 
 type Zurg struct {
 	Host string `yaml:"host" default:"http://localhost:9999"`
-}
-
-type QDebrid struct {
-	Host string `yaml:"host" default:""`
-	Port int    `yaml:"port" default:"8080"`
-
-	ResponseCacheTTL string `yaml:"response_cache_ttl" default:"5m"`
-
-	CategoryName string `yaml:"category_name" default:"qdebrid"`
-	SavePath     string `yaml:"save_path" default:"/mnt/zurg/__all__"`
-
-	ValidatePaths bool `yaml:"validate_paths" default:"true"`
-
-	AllowUncached    bool     `yaml:"allow_uncached" default:"false"`
-	AllowedFileTypes []string `yaml:"allowed_file_types" default:"[mkv, mp4]"`
 }
 
 type Settings struct {

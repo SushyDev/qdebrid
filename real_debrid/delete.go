@@ -24,16 +24,19 @@ func Delete(id string) error {
 
 	defer response.Body.Close()
 
+	err = nil
 	switch response.StatusCode {
 	case 204:
-		return nil
+		err = nil
 	case 401:
-		return fmt.Errorf("Bad token (expired, invalid)")
+		err = fmt.Errorf("Bad token (expired, invalid)")
 	case 403:
-		return fmt.Errorf("Permission denied (account locked, not premium)")
+		err = fmt.Errorf("Permission denied (account locked, not premium)")
 	case 404:
-		return fmt.Errorf("Unknown resource (invalid id)")
+		err = fmt.Errorf("Unknown resource (invalid id)")
 	default:
-		return fmt.Errorf("Unknown error")
+		err = fmt.Errorf("Unknown error")
 	}
+
+	return err
 }

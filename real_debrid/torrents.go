@@ -26,8 +26,7 @@ func Torrents() (TorrentsResponse, error) {
 	switch response.StatusCode {
 	case 200:
 		var torrents = TorrentsResponse{}
-		err = json.NewDecoder(response.Body).Decode(&torrents)
-		if err != nil {
+		if err := json.NewDecoder(response.Body).Decode(&torrents); err != nil {
 			return TorrentsResponse{}, err
 		}
 

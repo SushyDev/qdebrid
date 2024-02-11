@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"qdebrid/config"
+	"qdebrid/logger"
 )
 
 type RealDebridClient struct {
@@ -33,5 +34,7 @@ var apiHost = "https://api.real-debrid.com"
 var apiPath = "/rest/1.0"
 
 var settings = config.GetSettings()
+
+var sugar = logger.Sugar()
 
 var client = NewRealDebridClient(settings.RealDebrid.Token)

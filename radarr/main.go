@@ -36,17 +36,17 @@ func History() (HistorySinceResponse, error) {
 		return HistorySinceResponse{}, err
 	}
 
-	defer response.Body.Close()
+	switch response.StatusCode {
+	case 200:
+		var data = HistorySinceResponse{}
+		if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
+			return HistorySinceResponse{}, err
+		}
 
-	if response.StatusCode != 200 {
+		return data, nil
+	case 401:
+		return HistorySinceResponse{}, fmt.Errorf("Unauthorized")
+	default:
 		return HistorySinceResponse{}, fmt.Errorf("Failed to fetch history")
 	}
-
-	var data = HistorySinceResponse{}
-	err = json.NewDecoder(response.Body).Decode(&data)
-	if err != nil {
-		return HistorySinceResponse{}, err
-	}
-
-	return data, nil
 }

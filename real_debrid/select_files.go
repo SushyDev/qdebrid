@@ -16,10 +16,10 @@ func filesToSelect(hash string) ([]string, error) {
 
 	var ids []string
 
-	variantLoop:
+variantLoop:
 	for _, variant := range available[hash]["rd"] {
 		if len(settings.QDebrid.AllowedFileTypes) == 0 {
-			for id, _ := range variant {
+			for id := range variant {
 				ids = append(ids, id)
 			}
 		}
@@ -27,7 +27,7 @@ func filesToSelect(hash string) ([]string, error) {
 		for _, extension := range settings.QDebrid.AllowedFileTypes {
 			for _, file := range variant {
 				if strings.HasSuffix(file.FileName, extension) {
-					for id, _ := range variant {
+					for id := range variant {
 						ids = append(ids, id)
 					}
 
@@ -47,11 +47,19 @@ func filesToSelect(hash string) ([]string, error) {
 func selectFiles(id string) error {
 	torrent, err := TorrentInfo(id)
 	if err != nil {
+		if err := Delete(id); err != nil {
+			return err
+		}
+
 		return err
 	}
 
 	files, err := filesToSelect(torrent.Hash)
 	if err != nil {
+		if err := Delete(id); err != nil {
+			return err
+		}
+
 		return err
 	}
 
@@ -76,25 +84,31 @@ func selectFiles(id string) error {
 
 	defer response.Body.Close()
 
+	err = nil
 	switch response.StatusCode {
 	case 202:
-		return fmt.Errorf("Action already done")
+		err = fmt.Errorf("Action already done")
 	case 204:
-		return nil
+		err = nil
 	case 400:
-		return fmt.Errorf("Bad Request (see error message)")
+		err = fmt.Errorf("Bad Request (see error message)")
 	case 401:
-		return fmt.Errorf("Bad token (expired, invalid)")
+		err = fmt.Errorf("Bad token (expired, invalid)")
 	case 403:
-		return fmt.Errorf("Permission denied (account locked, not premium)")
+		err = fmt.Errorf("Permission denied (account locked, not premium)")
 	case 404:
-		err := Delete(id)
-		if err != nil {
+		err = fmt.Errorf("Wrong parameter (invalid file id(s)) / Unknown resource (invalid id)")
+	default:
+		err = fmt.Errorf("Unknown error")
+	}
+
+	if err != nil {
+		if err := Delete(id); err != nil {
 			return err
 		}
 
-		return fmt.Errorf("Wrong parameter (invalid file id(s)) / Unknown resource (invalid id)")
-	default:
-		return fmt.Errorf("Unknown error")
+		return err
 	}
+
+	return err
 }

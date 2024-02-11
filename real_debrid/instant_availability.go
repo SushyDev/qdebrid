@@ -26,8 +26,7 @@ func instantAvailability(hash string) (InstantAvailabilityResponse, error) {
 	switch response.StatusCode {
 	case 200:
 		var instantAvailability = InstantAvailabilityResponse{}
-		err = json.NewDecoder(response.Body).Decode(&instantAvailability)
-		if err != nil {
+		if err := json.NewDecoder(response.Body).Decode(&instantAvailability); err != nil {
 			return InstantAvailabilityResponse{}, err
 		}
 
