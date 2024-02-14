@@ -40,3 +40,11 @@ func Delete(id string) error {
 
 	return err
 }
+
+func DeleteBecauseError(id string, err error) error {
+	if err := Delete(id); err != nil {
+		return err
+	}
+
+	return err
+}
