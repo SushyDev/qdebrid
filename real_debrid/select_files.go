@@ -5,62 +5,79 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
-func filesToSelect(hash string) ([]string, error) {
-	available, err := instantAvailability(hash)
-	if err != nil {
-		return nil, err
+func filterFiles(torrent TorrentInfoResponse) ([]string, error) {
+	// In the future might want to throw an error and make AllowedFileTypes required
+	if len(settings.QDebrid.AllowedFileTypes) == 0 {
+		return []string{"all"}, nil
 	}
 
 	var ids []string
-
-variantLoop:
-	for _, variant := range available[hash]["rd"] {
-		if len(settings.QDebrid.AllowedFileTypes) == 0 {
-			for id := range variant {
-				ids = append(ids, id)
-			}
-		}
-
+	for _, file := range torrent.Files {
 		for _, extension := range settings.QDebrid.AllowedFileTypes {
-			for _, file := range variant {
-				if strings.HasSuffix(file.FileName, extension) {
-					for id := range variant {
-						ids = append(ids, id)
-					}
-
-					continue variantLoop
-				}
+			if strings.HasSuffix(file.Path, extension) {
+				ids = append(ids, strconv.Itoa(file.ID))
 			}
 		}
 	}
 
-	if !settings.QDebrid.AllowUncached && len(ids) == 0 {
-		return nil, fmt.Errorf("No cached files available")
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("No accepted files found")
 	}
 
 	return ids, nil
 }
 
-func selectFiles(id string) error {
-	torrent, err := TorrentInfo(id)
-	if err != nil {
-		if err := Delete(id); err != nil {
-			return err
-		}
+func filesAvailability(hash string, ids []string) error {
+	if settings.QDebrid.AllowUncached {
+		return nil
+	}
 
+	available, err := instantAvailability(hash)
+	if err != nil {
 		return err
 	}
 
-	files, err := filesToSelect(torrent.Hash)
-	if err != nil {
-		if err := Delete(id); err != nil {
-			return err
+	idsMap := make(map[string]bool)
+	for _, id := range ids {
+		idsMap[id] = true
+	}
+
+variants:
+	for _, variant := range available[hash]["rd"] {
+		if len(variant) != len(ids) {
+			continue
 		}
 
-		return err
+		for ids := range variant {
+			if !idsMap[ids] {
+				continue variants
+			}
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("No cached files available")
+}
+
+func selectFiles(id string) error {
+	torrent, err := TorrentInfo(id)
+	if err != nil {
+		return DeleteBecauseError(id, err)
+	}
+
+	files, err := filterFiles(torrent)
+	if err != nil {
+		return DeleteBecauseError(id, err)
+	}
+
+	err = filesAvailability(torrent.Hash, files)
+	if err != nil {
+		return DeleteBecauseError(id, err)
 	}
 
 	var input = url.Values{}
@@ -72,14 +89,14 @@ func selectFiles(id string) error {
 
 	req, err := http.NewRequest("POST", url.String(), bytes.NewBufferString(requestBody))
 	if err != nil {
-		return err
+		return DeleteBecauseError(id, err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	response, err := client.Do(req)
 	if err != nil {
-		return err
+		return DeleteBecauseError(id, err)
 	}
 
 	defer response.Body.Close()
@@ -103,12 +120,8 @@ func selectFiles(id string) error {
 	}
 
 	if err != nil {
-		if err := Delete(id); err != nil {
-			return err
-		}
-
-		return err
+		return DeleteBecauseError(id, err)
 	}
 
-	return err
+	return nil
 }
