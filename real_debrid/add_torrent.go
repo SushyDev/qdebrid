@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"qdebrid/logger"
 )
 
 func AddTorrent(torrent io.Reader) error {
@@ -33,6 +34,8 @@ func AddTorrent(torrent io.Reader) error {
 		if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
 			return err
 		}
+
+		sugar.Debug(logger.EndpointMessage("real_debrid", "AddTorrent", fmt.Sprintf("Torrent ID: %v", data.Id)))
 
 		err = selectFiles(data.Id)
 	case 400:

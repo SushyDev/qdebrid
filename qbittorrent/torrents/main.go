@@ -57,6 +57,8 @@ func Categories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sugar.Debug(logger.EndpointMessage("qbittorrent", "torrents/categories", fmt.Sprintf("Categories: %s", jsonData)))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonData)
 }
@@ -238,6 +240,8 @@ func Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	added := 0
+
 	urls := r.FormValue("urls")
 
 	for _, url := range SplitString(urls, "\n") {
@@ -247,6 +251,8 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			added++
 		}
 
 		if strings.HasPrefix(url, "http") {
@@ -262,10 +268,12 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			added++
 		}
 	}
 
-	if r.Header.Get("Content-Type") == "multipart/form-data" {
+	if contentType == "multipart/form-data" {
 		torrentHeaders := r.MultipartForm.File["torrents"]
 
 		for _, header := range torrentHeaders {
@@ -281,10 +289,12 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			added++
 		}
 	}
 
-	sugar.Info(logger.EndpointMessage("qbittorrent", "torrents/add", "Torrent(s) added successfully"))
+	sugar.Info(logger.EndpointMessage("qbittorrent", "torrents/add", fmt.Sprintf("Added %d torrents", added)))
 
 	ClearCachedTorrents()
 

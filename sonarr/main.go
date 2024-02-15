@@ -18,9 +18,11 @@ func History() (HistorySinceResponse, error) {
 		return HistorySinceResponse{}, err
 	}
 
+	query := url.Query()
+	query.Add("eventType", "grabbed")
+
+	url.RawQuery = query.Encode()
 	url.Path += apiPath + "/history/since"
-	url.Query().Add("date", "1970-01-01")
-	url.Query().Add("eventType", "1")
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
