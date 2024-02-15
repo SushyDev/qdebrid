@@ -14,6 +14,8 @@ type QDebrid struct {
 	AllowUncached    bool     `yaml:"allow_uncached" default:"false"`
 	AllowedFileTypes []string `yaml:"allowed_file_types" default:"[mkv, mp4]"`
 
+	MinFileSize int `yaml:"min_file_size" default:"500000000"` // In Bytes (500MB)
+
 	LogLevel string `yaml:"log_level" default:"info"`
 }
 

@@ -17,6 +17,10 @@ func filterFiles(torrent TorrentInfoResponse) ([]string, error) {
 
 	var ids []string
 	for _, file := range torrent.Files {
+		if file.Bytes <= settings.QDebrid.MinFileSize {
+			continue
+		}
+
 		for _, extension := range settings.QDebrid.AllowedFileTypes {
 			if strings.HasSuffix(file.Path, extension) {
 				ids = append(ids, strconv.Itoa(file.ID))
