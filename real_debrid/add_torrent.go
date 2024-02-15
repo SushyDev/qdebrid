@@ -8,7 +8,7 @@ import (
 	"net/url"
 )
 
-func AddTorrent(torrent io.Reader, files string) error {
+func AddTorrent(torrent io.Reader) error {
 	url, _ := url.Parse(apiHost)
 	url.Path += apiPath + "/torrents/addTorrent"
 

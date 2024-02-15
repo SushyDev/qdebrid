@@ -8,7 +8,7 @@ import (
 	"net/url"
 )
 
-func AddMagnet(magnet string, files string) error {
+func AddMagnet(magnet string) error {
 	input := url.Values{}
 	input.Set("magnet", magnet)
 	requestBody := input.Encode()

@@ -73,7 +73,12 @@ func Properties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	torrentInfo := GetTorrentInfo(torrent)
+	torrentInfo, err := GetTorrentInfo(torrent)
+	if err != nil {
+		sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/properties", err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	jsonData, err := json.Marshal(torrentInfo)
 	if err != nil {
@@ -151,7 +156,13 @@ func Info(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, match := range historyMatches {
-			torrentInfo := GetTorrentInfo(match.Torrent)
+			torrentInfo, err := GetTorrentInfo(match.Torrent)
+			if err != nil {
+				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			torrentInfos = append(torrentInfos, torrentInfo)
 		}
 
@@ -164,12 +175,24 @@ func Info(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, match := range historyMatches {
-			torrentInfo := GetTorrentInfo(match.Torrent)
+			torrentInfo, err := GetTorrentInfo(match.Torrent)
+			if err != nil {
+				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			torrentInfos = append(torrentInfos, torrentInfo)
 		}
 	default:
 		for _, torrent := range cachedTorrents {
-			torrentInfo := GetTorrentInfo(torrent)
+			torrentInfo, err := GetTorrentInfo(torrent)
+			if err != nil {
+				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 			torrentInfos = append(torrentInfos, torrentInfo)
 		}
 	}
@@ -219,7 +242,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 
 	for _, url := range SplitString(urls, "\n") {
 		if strings.HasPrefix(url, "magnet") {
-			if err := real_debrid.AddMagnet(url, "all"); err != nil {
+			if err := real_debrid.AddMagnet(url); err != nil {
 				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/add", err.Error()))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -234,7 +257,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
+			if err := real_debrid.AddTorrent(torrent); err != nil {
 				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/add", err.Error()))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -253,7 +276,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if err := real_debrid.AddTorrent(torrent, "all"); err != nil {
+			if err := real_debrid.AddTorrent(torrent); err != nil {
 				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/add", err.Error()))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

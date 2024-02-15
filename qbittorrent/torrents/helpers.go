@@ -194,7 +194,7 @@ func PathExists(path string) (bool, error) {
 	return false, nil
 }
 
-func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
+func GetTorrentInfo(torrent real_debrid.Torrent) (TorrentInfo, error) {
 	var state string
 	switch torrent.Status {
 	case "magnet_error":
@@ -202,9 +202,9 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	case "magnet_conversion":
 		state = "checkingUP"
 	case "waiting_files_selection":
-		state = "pausedUP"
+		state = "checkingUP"
 	case "queued":
-		state = "pausedUP"
+		state = "checkingUP"
 	case "downloading":
 		state = "downloading"
 	case "downloaded":
@@ -214,21 +214,28 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 	case "virus":
 		state = "error"
 	case "compressing":
-		state = "pausedUP"
+		state = "checkingUP"
 	case "uploading":
 		state = "uploading"
 	case "dead":
 		state = "error"
 	default:
-		state = "checkingUP"
+		state = "unknown"
 	}
 
-	pathExists, _ := PathExists(torrent.Filename)
+	pathExists, err := PathExists(torrent.Filename)
+	if err != nil {
+		return TorrentInfo{}, err
+	}
+
 	if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
 		state = "checkingUP"
 	}
 
-	addedOn, _ := time.Parse(time.RFC3339Nano, torrent.Added)
+	addedOn, err := time.Parse(time.RFC3339Nano, torrent.Added)
+	if err != nil {
+		return TorrentInfo{}, err
+	}
 
 	contentPath := filepath.Join(settings.QDebrid.SavePath, torrent.Filename)
 
@@ -306,5 +313,5 @@ func GetTorrentInfo(torrent real_debrid.Torrent) TorrentInfo {
 		// UploadLimit:     -1,
 		// Uploaded:        bytesDone,
 		// UploadedSession: bytesDone,
-	}
+	}, nil
 }
