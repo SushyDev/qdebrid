@@ -9,6 +9,12 @@ import (
 
 func Torrents() (TorrentsResponse, error) {
 	url, _ := url.Parse(apiHost)
+
+	query := url.Query()
+	query.Add("limit", "1000")
+	query.Add("page", "1")
+
+	url.RawQuery = query.Encode()
 	url.Path += apiPath + "/torrents"
 
 	req, err := http.NewRequest("GET", url.String(), nil)
