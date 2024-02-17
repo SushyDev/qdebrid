@@ -23,16 +23,6 @@ type RealDebrid struct {
 	Token string `yaml:"token"`
 }
 
-type Sonarr struct {
-	Host  string `yaml:"host" default:"http://localhost:8989"`
-	Token string `yaml:"token"`
-}
-
-type Radarr struct {
-	Host  string `yaml:"host" default:"http://localhost:7878"`
-	Token string `yaml:"token"`
-}
-
 type Zurg struct {
 	Host string `yaml:"host" default:"http://localhost:9999"`
 }
@@ -40,8 +30,6 @@ type Zurg struct {
 type Settings struct {
 	QDebrid    QDebrid    `yaml:"qdebrid"`
 	RealDebrid RealDebrid `yaml:"real_debrid"`
-	Sonarr     Sonarr     `yaml:"sonarr"`
-	Radarr     Radarr     `yaml:"radarr"`
 	Zurg       Zurg       `yaml:"zurg"`
 }
 

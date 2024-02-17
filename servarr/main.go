@@ -1,19 +1,22 @@
-package radarr
+package servarr
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"qdebrid/config"
 )
 
 var apiPath = "/api/v3"
 
-var settings = config.GetSettings()
+type HistorySinceResponse []Record
 
-func History() (HistorySinceResponse, error) {
-	url, err := url.Parse(settings.Radarr.Host)
+type Record struct {
+	DownloadID string `json:"downloadId"`
+}
+
+func History(host string, token string) (HistorySinceResponse, error) {
+	url, err := url.Parse(host)
 	if err != nil {
 		return HistorySinceResponse{}, err
 	}
@@ -29,7 +32,7 @@ func History() (HistorySinceResponse, error) {
 		return HistorySinceResponse{}, err
 	}
 
-	req.Header.Set("X-Api-Key", settings.Radarr.Token)
+	req.Header.Set("X-Api-Key", token)
 
 	client := &http.Client{}
 
@@ -37,6 +40,8 @@ func History() (HistorySinceResponse, error) {
 	if err != nil {
 		return HistorySinceResponse{}, err
 	}
+
+	defer response.Body.Close()
 
 	switch response.StatusCode {
 	case 200:

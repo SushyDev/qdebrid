@@ -7,6 +7,7 @@ import (
 	"qdebrid/config"
 	"qdebrid/logger"
 	"qdebrid/real_debrid"
+	"qdebrid/servarr"
 	"strings"
 )
 
@@ -145,58 +146,37 @@ func Info(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userAgent := strings.Split(r.UserAgent(), "/")[0]
+	host, token, err := DecodeAuthHeader(r.Header.Get("Authorization"))
+	if err != nil {
+		sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	torrentInfos := []TorrentInfo{}
-	switch userAgent {
-	case "Radarr":
-		historyMatches, err := RadarrTorrents(userAgent, cachedTorrents)
+	history, err := servarr.History(host, token)
+	if err != nil {
+		sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	historyMatches, err := ServarrTorrents(history, cachedTorrents)
+	if err != nil {
+		sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, match := range historyMatches {
+		torrentInfo, err := GetTorrentInfo(match.Torrent)
 		if err != nil {
 			sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		for _, match := range historyMatches {
-			torrentInfo, err := GetTorrentInfo(match.Torrent)
-			if err != nil {
-				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			torrentInfos = append(torrentInfos, torrentInfo)
-		}
-
-	case "Sonarr":
-		historyMatches, err := SonarrTorrents(userAgent, cachedTorrents)
-		if err != nil {
-			sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		for _, match := range historyMatches {
-			torrentInfo, err := GetTorrentInfo(match.Torrent)
-			if err != nil {
-				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			torrentInfos = append(torrentInfos, torrentInfo)
-		}
-	default:
-		for _, torrent := range cachedTorrents {
-			torrentInfo, err := GetTorrentInfo(torrent)
-			if err != nil {
-				sugar.Error(logger.EndpointMessage("qbittorrent", "torrents/info", err.Error()))
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			torrentInfos = append(torrentInfos, torrentInfo)
-		}
+		torrentInfos = append(torrentInfos, torrentInfo)
 	}
 
 	jsonData, err := json.Marshal(torrentInfos)
@@ -243,7 +223,6 @@ func Add(w http.ResponseWriter, r *http.Request) {
 	added := 0
 
 	urls := r.FormValue("urls")
-
 	for _, url := range SplitString(urls, "\n") {
 		if strings.HasPrefix(url, "magnet") {
 			if err := real_debrid.AddMagnet(url); err != nil {

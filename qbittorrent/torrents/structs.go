@@ -1,9 +1,8 @@
 package torrents
 
 import (
-	"qdebrid/radarr"
 	"qdebrid/real_debrid"
-	"qdebrid/sonarr"
+	"qdebrid/servarr"
 )
 
 type Category struct {
@@ -129,12 +128,7 @@ type TorrentInfo struct {
 	UploadSpeed        int64   `json:"upspeed"`
 }
 
-type SonarrTorrentMatch struct {
-	History sonarr.Record
-	Torrent real_debrid.Torrent
-}
-
-type RadarrTorrentMatch struct {
-	History radarr.Record
+type ServarrTorrentMatch struct {
+	History servarr.Record
 	Torrent real_debrid.Torrent
 }

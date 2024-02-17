@@ -2,14 +2,14 @@ package torrents
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"qdebrid/radarr"
 	"qdebrid/real_debrid"
-	"qdebrid/sonarr"
+	"qdebrid/servarr"
 	"reflect"
 	"strings"
 	"time"
@@ -17,6 +17,23 @@ import (
 
 var _cachedTorrents = real_debrid.TorrentsResponse{}
 var _cachedTorrentsTime = time.Now()
+
+func DecodeAuthHeader(header string) (string, string, error) {
+	encodedToken := strings.Split(header, " ")[1]
+
+	bytes, err := base64.StdEncoding.DecodeString(encodedToken)
+	if err != nil {
+		return "", "", err
+	}
+
+	bearer := string(bytes)
+
+	colonIndex := strings.LastIndex(bearer, ":")
+	host := bearer[:colonIndex]
+	token := bearer[colonIndex+1:]
+
+	return host, token, nil
+}
 
 func getCachedTorrents() (real_debrid.TorrentsResponse, error) {
 	passed := time.Now().Sub(_cachedTorrentsTime)
@@ -87,64 +104,29 @@ func SplitString(s string, sep string) []string {
 	return result
 }
 
-func SonarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]SonarrTorrentMatch, error) {
-	history, err := sonarr.History()
-	if err != nil {
-		return nil, err
-	}
-
-	var sonarrTorrents []SonarrTorrentMatch
+func ServarrTorrents(history servarr.HistorySinceResponse, torrents []real_debrid.Torrent) ([]ServarrTorrentMatch, error) {
+	var servarrTorrents []ServarrTorrentMatch
 	for _, record := range history {
 	torrents:
 		for _, torrent := range torrents {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {
-				for _, existing := range sonarrTorrents {
+				for _, existing := range servarrTorrents {
 					if existing.Torrent.Hash == torrent.Hash {
 						break torrents
 					}
 				}
 
-				sonarrTorrent := SonarrTorrentMatch{
+				servarrTorrent := ServarrTorrentMatch{
 					History: record,
 					Torrent: torrent,
 				}
 
-				sonarrTorrents = append(sonarrTorrents, sonarrTorrent)
+				servarrTorrents = append(servarrTorrents, servarrTorrent)
 			}
 		}
 	}
 
-	return sonarrTorrents, nil
-}
-
-func RadarrTorrents(userAgent string, torrents []real_debrid.Torrent) ([]RadarrTorrentMatch, error) {
-	history, err := radarr.History()
-	if err != nil {
-		return nil, err
-	}
-
-	var radarrTorrents []RadarrTorrentMatch
-	for _, record := range history {
-	torrents:
-		for _, torrent := range torrents {
-			if strings.EqualFold(record.DownloadID, torrent.Hash) {
-				for _, existing := range radarrTorrents {
-					if existing.Torrent.Hash == torrent.Hash {
-						break torrents
-					}
-				}
-
-				radarrTorrent := RadarrTorrentMatch{
-					History: record,
-					Torrent: torrent,
-				}
-
-				radarrTorrents = append(radarrTorrents, radarrTorrent)
-			}
-		}
-	}
-
-	return radarrTorrents, nil
+	return servarrTorrents, nil
 }
 
 func GetTorrent(url string) (io.Reader, error) {
