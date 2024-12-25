@@ -1,5 +1,14 @@
 package config
 
+type Settings struct {
+	QDebrid    QDebrid    `yaml:"qdebrid"`
+	RealDebrid RealDebrid `yaml:"real_debrid"`
+}
+
+type Config struct {
+	Settings Settings `yaml:"settings"`
+}
+
 type QDebrid struct {
 	Host string `yaml:"host" default:""`
 	Port int    `yaml:"port" default:"8080"`
@@ -7,7 +16,7 @@ type QDebrid struct {
 	ResponseCacheTTL string `yaml:"response_cache_ttl" default:"5m"`
 
 	CategoryName string `yaml:"category_name" default:"qdebrid"`
-	SavePath     string `yaml:"save_path" default:"/mnt/zurg/__all__"`
+	SavePath     string `yaml:"save_path" default:"/mnt/debrid_drive/new_torrents"`
 
 	ValidatePaths bool `yaml:"validate_paths" default:"true"`
 
@@ -21,18 +30,4 @@ type QDebrid struct {
 
 type RealDebrid struct {
 	Token string `yaml:"token"`
-}
-
-type Zurg struct {
-	Host string `yaml:"host" default:"http://localhost:9999"`
-}
-
-type Settings struct {
-	QDebrid    QDebrid    `yaml:"qdebrid"`
-	RealDebrid RealDebrid `yaml:"real_debrid"`
-	Zurg       Zurg       `yaml:"zurg"`
-}
-
-type Config struct {
-	Settings Settings `yaml:"settings"`
 }

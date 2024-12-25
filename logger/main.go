@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"fmt"
 	"qdebrid/config"
 
 	"go.uber.org/zap"
@@ -9,6 +8,8 @@ import (
 )
 
 var settings = config.GetSettings()
+
+var instance *zap.SugaredLogger
 
 func initializeLogger(level string) *zap.Logger {
 	var atomicLevel zap.AtomicLevel
@@ -28,7 +29,7 @@ func initializeLogger(level string) *zap.Logger {
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	config := zap.Config{
-		Level:       atomicLevel,
+		Level:            atomicLevel,
 		Encoding:         "console",
 		EncoderConfig:    encoderConfig,
 		OutputPaths:      []string{"stdout"},
@@ -43,14 +44,14 @@ func initializeLogger(level string) *zap.Logger {
 	return logger
 }
 
-
-
 func Sugar() *zap.SugaredLogger {
+	if instance != nil {
+		return instance
+	}
+
 	logLevel := settings.QDebrid.LogLevel
 
-	return initializeLogger(logLevel).Sugar()
-}
+	instance = initializeLogger(logLevel).Sugar()
 
-func EndpointMessage(module string, endpoint string, message string) string {
-	return fmt.Sprintf("[%s] %s: %s", module, endpoint, message)
+	return instance
 }

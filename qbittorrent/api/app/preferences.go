@@ -5,7 +5,9 @@ import (
 	"net/http"
 )
 
-func Preferences(w http.ResponseWriter, r *http.Request) {
+type Config struct{}
+
+func (*Module) Preferences(w http.ResponseWriter, r *http.Request) {
 	config := Config{}
 
 	jsonData, err := json.Marshal(config)

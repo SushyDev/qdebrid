@@ -3,50 +3,52 @@ package qbittorrent
 import (
 	"fmt"
 	"net/http"
-	"qdebrid/config"
-	"qdebrid/logger"
-	"qdebrid/qbittorrent/app"
-	"qdebrid/qbittorrent/auth"
-	"qdebrid/qbittorrent/torrents"
+	"qdebrid/qbittorrent/api"
+	"qdebrid/qbittorrent/api/app"
+	"qdebrid/qbittorrent/api/auth"
+	"qdebrid/qbittorrent/api/torrents"
 )
 
 var apiPath = "/api/v2"
 
-var settings = config.GetSettings()
-
+// todo move to /api dir ??
 func Listen() {
-	sugar := logger.Sugar()
-
 	mux := http.NewServeMux()
 
+	apiInstance := api.New()
+
+	authModule := auth.New(apiInstance)
+	appModule := app.New(apiInstance)
+	torrentsModule := torrents.New(apiInstance)
+
 	// Auth
-	mux.HandleFunc(apiPath+"/auth/login", auth.Login)
+	mux.HandleFunc(apiPath+"/auth/login", authModule.Login)
 
 	// App
-	mux.HandleFunc(apiPath+"/app/webapiVersion", app.Version)
-	mux.HandleFunc(apiPath+"/app/preferences", app.Preferences)
+	mux.HandleFunc(apiPath+"/app/webapiVersion", appModule.Version)
+	mux.HandleFunc(apiPath+"/app/preferences", appModule.Preferences)
 
 	// Torrents
-	mux.HandleFunc(apiPath+"/torrents/categories", torrents.Categories)
-	mux.HandleFunc(apiPath+"/torrents/add", torrents.Add)
-	mux.HandleFunc(apiPath+"/torrents/delete", torrents.Delete)
-	mux.HandleFunc(apiPath+"/torrents/info", torrents.Info)
-	mux.HandleFunc(apiPath+"/torrents/files", torrents.Files)
-	mux.HandleFunc(apiPath+"/torrents/properties", torrents.Properties)
+	mux.HandleFunc(apiPath+"/torrents/add", torrentsModule.Add)
+	mux.HandleFunc(apiPath+"/torrents/categories", torrentsModule.Categories)
+	mux.HandleFunc(apiPath+"/torrents/delete", torrentsModule.Delete)
+	mux.HandleFunc(apiPath+"/torrents/files", torrentsModule.Files)
+	mux.HandleFunc(apiPath+"/torrents/info", torrentsModule.Info)
+	mux.HandleFunc(apiPath+"/torrents/properties", torrentsModule.Properties)
 
 	host := ""
 	port := "8080"
 
-	if settings.QDebrid.Host != "" {
-		host = settings.QDebrid.Host
+	if apiInstance.Settings.QDebrid.Host != "" {
+		host = apiInstance.Settings.QDebrid.Host
 	}
 
-	if settings.QDebrid.Port != 0 {
-		port = fmt.Sprintf("%d", settings.QDebrid.Port)
+	if apiInstance.Settings.QDebrid.Port != 0 {
+		port = fmt.Sprintf("%d", apiInstance.Settings.QDebrid.Port)
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 
-	sugar.Info("Listening on ", addr)
+	apiInstance.GetLogger().Info("Listening on ", addr)
 	http.ListenAndServe(addr, mux)
 }
