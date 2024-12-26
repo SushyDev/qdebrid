@@ -114,7 +114,6 @@ func Listen() {
 
 		cachedFiles := cacheStore.Get(cacheKey)
 		if cachedFiles == nil {
-			fmt.Println("Returning cached files")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(cachedFiles)
@@ -146,7 +145,14 @@ func Listen() {
 	})
 
 	mux.HandleFunc(apiPath+"/torrents/info", func(w http.ResponseWriter, r *http.Request) {
-		info, err := torrents.Info(apiInstance.RealDebridClient, cacheStore)
+		host, token, err := torrents.DecodeAuthHeader(r)
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		info, err := torrents.Info(apiInstance.RealDebridClient, cacheStore, host, token)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -168,7 +174,6 @@ func Listen() {
 
 		cachedProperties := cacheStore.Get(cacheKey)
 		if cachedProperties == nil {
-			fmt.Println("Returning cached properties")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(cachedProperties)

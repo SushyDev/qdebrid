@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"qdebrid/cache"
 	"qdebrid/qbittorrent/helpers"
+	"qdebrid/servarr"
 	"time"
 
 	real_debrid "github.com/sushydev/real_debrid_go"
@@ -40,14 +41,28 @@ func getTorrents(client *real_debrid.Client, cacheStore *cache.Cache) (*real_deb
 	return torrents, nil
 }
 
-func Info(client *real_debrid.Client, cacheStore *cache.Cache) ([]byte, error) {
+func Info(client *real_debrid.Client, cacheStore *cache.Cache, host string, token string) ([]byte, error) {
 	torrents, err := getTorrents(client, cacheStore)
 	if err != nil {
 		return nil, err
 	}
 
+	history, err := servarr.GetHistory(host, token)
+	if err != nil {
+		return nil, err
+	}
+
+	var matchedTorrents real_debrid_api.Torrents
+	for _, record := range history {
+		for _, torrent := range *torrents {
+			if torrent.ID == record.DownloadID {
+				matchedTorrents = append(matchedTorrents, torrent)
+			}
+		}
+	}
+
 	torrentInfos := []helpers.TorrentInfo{}
-	for _, match := range *torrents {
+	for _, match := range matchedTorrents {
 		torrentInfo, err := helpers.ParseTorrentInfo(match)
 		if err != nil {
 			return nil, err
