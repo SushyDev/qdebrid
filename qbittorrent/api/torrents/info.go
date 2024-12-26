@@ -1,58 +1,56 @@
 package torrents
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"net/http"
+	"qdebrid/cache"
 	"qdebrid/qbittorrent/helpers"
-	"strings"
+	"time"
 
+	real_debrid "github.com/sushydev/real_debrid_go"
 	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
 
-func decodeAuthHeader(request *http.Request) (string, string, error) {
-	header := request.Header.Get("Authorization")
-	if header == "" {
-		return "", "", fmt.Errorf("Authorization header is missing")
+func getTorrents(client *real_debrid.Client, cacheStore *cache.Cache) (*real_debrid_api.Torrents, error) {
+	cachedTorrents := cacheStore.Get("torrents")
+	if cachedTorrents != nil {
+		unmarshaledTorrents := &real_debrid_api.Torrents{}
+		err := json.Unmarshal(cachedTorrents, unmarshaledTorrents)
+		if err != nil {
+			return nil, err
+		}
+
+		return unmarshaledTorrents, nil
 	}
 
-	encodedToken := strings.Split(header, " ")[1]
-
-	bytes, err := base64.StdEncoding.DecodeString(encodedToken)
+	torrents, err := real_debrid_api.GetTorrents(client)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	bearer := string(bytes)
+	marsheledTorrents, err := json.Marshal(torrents)
+	if err != nil {
+		return nil, err
+	}
 
-	colonIndex := strings.LastIndex(bearer, ":")
-	host := bearer[:colonIndex]
-	token := bearer[colonIndex+1:]
+	cacheStore.Store("torrents", cache.Entry{
+		Value:      marsheledTorrents,
+		Expiration: time.Now().Add(15 * time.Minute),
+	})
 
-	return host, token, nil
+	return torrents, nil
 }
 
-func (module *Module) Info(w http.ResponseWriter, request *http.Request) {
-	logger := module.GetLogger()
-
-	logger.Info("Received request for torrent info")
-
-	torrents, err := real_debrid_api.GetTorrents(module.RealDebridClient)
+func Info(client *real_debrid.Client, cacheStore *cache.Cache) ([]byte, error) {
+	torrents, err := getTorrents(client, cacheStore)
 	if err != nil {
-		logger.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	torrentInfos := []helpers.TorrentInfo{}
-
 	for _, match := range *torrents {
-		torrentInfo, err := helpers.GetTorrentInfo(match)
+		torrentInfo, err := helpers.ParseTorrentInfo(match)
 		if err != nil {
-			logger.Error(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 
 		torrentInfos = append(torrentInfos, torrentInfo)
@@ -60,13 +58,8 @@ func (module *Module) Info(w http.ResponseWriter, request *http.Request) {
 
 	jsonData, err := json.Marshal(torrentInfos)
 	if err != nil {
-		logger.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	logger.Debug(fmt.Sprintf("Returned %d matches", len(torrentInfos)))
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonData)
+	return jsonData, nil
 }

@@ -2,8 +2,6 @@ package torrents
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 )
 
 type category struct {
@@ -22,22 +20,13 @@ func list() categories {
 	}
 }
 
-func (module Module) Categories(w http.ResponseWriter, r *http.Request) {
-	logger := module.GetLogger()
-
-	logger.Info("Received request for torrent categories")
-
+func Categories() ([]byte, error) {
 	categories := list()
 
 	jsonData, err := json.Marshal(categories)
 	if err != nil {
-		logger.Error(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	logger.Debug(fmt.Sprintf("Categories: %s", jsonData))
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonData)
+	return jsonData, err
 }

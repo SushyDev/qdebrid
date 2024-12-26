@@ -6,66 +6,68 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"qdebrid/qbittorrent/helpers"
 	"strconv"
 	"strings"
-
-	"go.uber.org/zap"
 
 	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
 
-type entries struct {
-	urls  []string
-	files []io.ReadCloser
+func GetEntries(r *http.Request) (entries, error) {
+	entries := entries{}
+
+	validateAndParseForm(r)
+
+	contentType := parseContentType(r)
+
+	urls := r.FormValue("urls")
+	if urls != "" {
+		lines := splitString(urls)
+		for _, url := range lines {
+			entries.urls = append(entries.urls, url)
+		}
+	}
+
+	if contentType == "multipart/form-data" {
+		files := r.MultipartForm.File["torrents"]
+		for _, fileHeader := range files {
+			file, err := processFile(fileHeader)
+			if err != nil {
+				return entries, fmt.Errorf("failed to process file: %s, error: %v", fileHeader.Filename, err)
+			}
+
+			entries.files = append(entries.files, file)
+		}
+	}
+
+	return entries, nil
 }
 
-func (module *Module) Add(w http.ResponseWriter, r *http.Request) {
+func (module *Module) Add(entries entries) ([]byte, error) {
 	logger := module.GetLogger()
 
 	logger.Info("Received request to add torrent(s)")
 
-	contentType := parseContentType(r)
-
-	logger.Debug(fmt.Sprintf("Content-Type: %s", contentType))
-
-	err := validateAndParseForm(r, contentType)
-	if err != nil {
-		handleError(w, logger, "Failed to parse form", err)
-		return
-	}
-
-	entries, err := getEntries(r, contentType)
-	if err != nil {
-		handleError(w, logger, "Failed to get entries", err)
-		return
-	}
-
 	addedUrlTorrentIds, err := module.addFromUrls(entries.urls)
 	if err != nil {
-		handleError(w, logger, "Failed to add torrents from urls", err)
-		return
+		return nil, fmt.Errorf("Failed to add torrents from urls: %v", err)
 	}
 
 	addedFileIds, err := module.addFromFiles(entries.files)
 	if err != nil {
-		handleError(w, logger, "Failed to add torrents from files", err)
-		return
+		return nil, fmt.Errorf("Failed to add torrents from files: %v", err)
 	}
 
 	for _, torrentId := range addedUrlTorrentIds {
 		err = module.selectFiles(torrentId)
 		if err != nil {
-			handleError(w, logger, "Failed to select files", err)
-			return
+			return nil, fmt.Errorf("Failed to select files: %v", err)
 		}
 	}
 
 	for _, torrentId := range addedFileIds {
 		err = module.selectFiles(torrentId)
 		if err != nil {
-			handleError(w, logger, "Failed to select files", err)
-			return
+			return nil, fmt.Errorf("Failed to select files: %v", err)
 		}
 	}
 
@@ -73,10 +75,7 @@ func (module *Module) Add(w http.ResponseWriter, r *http.Request) {
 
 	logger.Info(fmt.Sprintf("Added %d torrents", added))
 
-	helpers.ClearCache()
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("Successfully added %d torrent(s)", added)))
+	return []byte(fmt.Sprintf("Successfully added %d torrent(s)", added)), nil
 }
 
 // --- Helpers
@@ -180,51 +179,6 @@ func (module *Module) getAllowedFileIds(torrentInfo *real_debrid_api.TorrentInfo
 	return ids, nil
 }
 
-func parseContentType(r *http.Request) string {
-	contentHeader := r.Header.Get("Content-Type")
-	parts := strings.Split(contentHeader, ";")
-
-	return parts[0]
-}
-
-func validateAndParseForm(r *http.Request, contentType string) error {
-	switch contentType {
-	case "multipart/form-data":
-		return r.ParseMultipartForm(0)
-	case "application/x-www-form-urlencoded":
-		return r.ParseForm()
-	default:
-		return fmt.Errorf("unsupported Content-Type: %s", contentType)
-	}
-}
-
-func getEntries(r *http.Request, contentType string) (entries, error) {
-	entries := entries{}
-
-	urls := r.FormValue("urls")
-	if urls != "" {
-		lines := splitString(urls)
-		for _, url := range lines {
-			entries.urls = append(entries.urls, url)
-		}
-	}
-
-	if contentType == "multipart/form-data" {
-		files := r.MultipartForm.File["torrents"]
-		for _, fileHeader := range files {
-			file, err := processFile(fileHeader)
-			if err != nil {
-				return entries, fmt.Errorf("failed to process file: %s, error: %v", fileHeader.Filename, err)
-			}
-
-			entries.files = append(entries.files, file)
-
-		}
-	}
-
-	return entries, nil
-}
-
 func fetchTorrentFile(url string) (io.ReadCloser, error) {
 	response, err := http.Get(url)
 	if err != nil {
@@ -256,7 +210,27 @@ func splitString(input string) []string {
 	return result
 }
 
-func handleError(w http.ResponseWriter, sugar *zap.SugaredLogger, message string, err error) {
-	sugar.Error(fmt.Sprintf("%s: %v", message, err))
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+type entries struct {
+	urls  []string
+	files []io.ReadCloser
+}
+
+func validateAndParseForm(r *http.Request) error {
+	contentType := parseContentType(r)
+
+	switch contentType {
+	case "multipart/form-data":
+		return r.ParseMultipartForm(0)
+	case "application/x-www-form-urlencoded":
+		return r.ParseForm()
+	default:
+		return fmt.Errorf("unsupported Content-Type: %s", contentType)
+	}
+}
+
+func parseContentType(r *http.Request) string {
+	contentHeader := r.Header.Get("Content-Type")
+	parts := strings.Split(contentHeader, ";")
+
+	return parts[0]
 }

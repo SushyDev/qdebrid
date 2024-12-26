@@ -55,7 +55,7 @@ type TorrentInfo struct {
 	UploadSpeed        int64   `json:"upspeed"`
 }
 
-func GetTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
+func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	state := mapRealDebridStatus(torrent.Status)
 
 	pathExists, err := pathExists(torrent.ID)
