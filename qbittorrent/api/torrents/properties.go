@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"qdebrid/qbittorrent/helpers"
-
-	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
 
 func (module *Module) Properties(w http.ResponseWriter, r *http.Request) {
@@ -15,7 +13,7 @@ func (module *Module) Properties(w http.ResponseWriter, r *http.Request) {
 
 	hash := r.URL.Query().Get("hash")
 
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(module.RealDebridClient, hash)
+	torrentInfo, err := helpers.GetTorrentInfoWithCache(module.RealDebridClient, hash)
 	if err != nil {
 		logger.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

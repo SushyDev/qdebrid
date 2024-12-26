@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"qdebrid/qbittorrent/helpers"
 	"strconv"
 	"strings"
 
@@ -71,6 +72,8 @@ func (module *Module) Add(w http.ResponseWriter, r *http.Request) {
 	added := len(addedUrlTorrentIds) + len(addedFileIds)
 
 	logger.Info(fmt.Sprintf("Added %d torrents", added))
+
+	helpers.ClearCache()
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(fmt.Sprintf("Successfully added %d torrent(s)", added)))

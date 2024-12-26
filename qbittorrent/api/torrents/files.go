@@ -3,8 +3,7 @@ package torrents
 import (
 	"encoding/json"
 	"net/http"
-
-	real_debrid_api "github.com/sushydev/real_debrid_go/api"
+	"qdebrid/qbittorrent/helpers"
 )
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
@@ -36,7 +35,7 @@ func (module *Module) Files(w http.ResponseWriter, r *http.Request) {
 
 	hash := r.URL.Query().Get("hash")
 
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(module.RealDebridClient, hash)
+	torrentInfo, err := helpers.GetTorrentInfoWithCache(module.RealDebridClient, hash)
 	if err != nil {
 		logger.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

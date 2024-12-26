@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"net/http"
+	"qdebrid/qbittorrent/helpers"
 
 	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
@@ -33,4 +34,9 @@ func (module *Module) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	helpers.ClearCache()
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
