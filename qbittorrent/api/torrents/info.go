@@ -5,6 +5,7 @@ import (
 	"qdebrid/cache"
 	"qdebrid/qbittorrent/helpers"
 	"qdebrid/servarr"
+	"strings"
 	"time"
 
 	real_debrid "github.com/sushydev/real_debrid_go"
@@ -55,7 +56,7 @@ func Info(client *real_debrid.Client, cacheStore *cache.Cache, host string, toke
 	var matchedTorrents real_debrid_api.Torrents
 	for _, record := range history {
 		for _, torrent := range *torrents {
-			if torrent.ID == record.DownloadID {
+			if strings.EqualFold(record.DownloadID, torrent.Hash) {
 				matchedTorrents = append(matchedTorrents, torrent)
 			}
 		}
