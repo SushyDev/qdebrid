@@ -3,7 +3,7 @@ module qdebrid
 go 1.23.2
 
 require (
-	github.com/sushydev/real_debrid_go v0.0.0-00010101000000-000000000000
+	github.com/sushydev/real_debrid_go v1.0.0
 	go.uber.org/zap v1.26.0
 	google.golang.org/grpc v1.68.0
 	google.golang.org/protobuf v1.35.2
