@@ -58,14 +58,14 @@ type TorrentInfo struct {
 func GetTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	state := mapRealDebridStatus(torrent.Status)
 
-	// pathExists, err := pathExists(torrent.Filename)
-	// if err != nil {
-	// 	return TorrentInfo{}, err
-	// }
+	pathExists, err := pathExists(torrent.ID)
+	if err != nil {
+		return TorrentInfo{}, err
+	}
 
-	// if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
-	// state = "checkingUP"
-	// }
+	if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
+		state = "checkingUP"
+	}
 
 	addedOn, err := time.Parse(time.RFC3339Nano, torrent.Added)
 	if err != nil {

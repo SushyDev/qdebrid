@@ -17,7 +17,7 @@ func list() categories {
 	return map[string]category{
 		"main": {
 			Name:     "main",
-			SavePath: "",
+			SavePath: settings.QDebrid.SavePath,
 		},
 	}
 }

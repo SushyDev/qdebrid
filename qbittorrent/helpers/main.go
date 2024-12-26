@@ -1,36 +1,22 @@
 package helpers
 
 import (
-	"net/http"
-	"net/url"
+	"os"
+	"path/filepath"
 	"qdebrid/config"
 )
 
 var settings = config.GetSettings()
 
 func pathExists(path string) (bool, error) {
-	url, _ := url.Parse("/") // todo zurg something blah
-	url.Path += "/http/__all__/" + path + "/"
+	directory := filepath.Join(settings.QDebrid.SavePath, path)
 
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return false, err
+	_, err := os.Stat(directory)
+	if os.IsNotExist(err) {
+		return false, nil
 	}
 
-	client := &http.Client{}
-
-	response, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode == 200 {
-		return true, nil
-	}
-
-	return false, nil
+	return true, err
 }
 
 func mapRealDebridStatus(status string) string {

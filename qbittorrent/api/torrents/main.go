@@ -1,6 +1,9 @@
 package torrents
 
-import "qdebrid/qbittorrent/api"
+import (
+	"qdebrid/config"
+	"qdebrid/qbittorrent/api"
+)
 
 type Module struct {
 	*api.Api
@@ -11,3 +14,5 @@ func New(api *api.Api) *Module {
 		Api: api,
 	}
 }
+
+var settings = config.GetSettings()

@@ -16,7 +16,7 @@ import (
 
 type entries struct {
 	urls  []string
-	files []io.Reader
+	files []io.ReadCloser
 }
 
 func (module *Module) Add(w http.ResponseWriter, r *http.Request) {
@@ -36,23 +36,31 @@ func (module *Module) Add(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := getEntries(r, contentType)
 	if err != nil {
-		handleError(w, logger, "Failed to add torrents", err)
+		handleError(w, logger, "Failed to get entries", err)
 		return
 	}
 
 	addedUrlTorrentIds, err := module.addFromUrls(entries.urls)
 	if err != nil {
-		handleError(w, logger, "Failed to add torrents", err)
+		handleError(w, logger, "Failed to add torrents from urls", err)
 		return
 	}
 
 	addedFileIds, err := module.addFromFiles(entries.files)
 	if err != nil {
-		handleError(w, logger, "Failed to add torrents", err)
+		handleError(w, logger, "Failed to add torrents from files", err)
 		return
 	}
 
 	for _, torrentId := range addedUrlTorrentIds {
+		err = module.selectFiles(torrentId)
+		if err != nil {
+			handleError(w, logger, "Failed to select files", err)
+			return
+		}
+	}
+
+	for _, torrentId := range addedFileIds {
 		err = module.selectFiles(torrentId)
 		if err != nil {
 			handleError(w, logger, "Failed to select files", err)
@@ -96,6 +104,8 @@ func (module *Module) addFromUrls(urls []string) ([]string, error) {
 				return torrentIds, err
 			}
 
+			file.Close()
+
 			torrentIds = append(torrentIds, response.Id)
 
 			continue
@@ -107,7 +117,7 @@ func (module *Module) addFromUrls(urls []string) ([]string, error) {
 	return torrentIds, nil
 }
 
-func (module *Module) addFromFiles(files []io.Reader) ([]string, error) {
+func (module *Module) addFromFiles(files []io.ReadCloser) ([]string, error) {
 	torrentIds := make([]string, 0)
 
 	for _, file := range files {
@@ -212,13 +222,11 @@ func getEntries(r *http.Request, contentType string) (entries, error) {
 	return entries, nil
 }
 
-func fetchTorrentFile(url string) (io.Reader, error) {
+func fetchTorrentFile(url string) (io.ReadCloser, error) {
 	response, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
-
-	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch torrent: status code %d", response.StatusCode)
@@ -227,12 +235,11 @@ func fetchTorrentFile(url string) (io.Reader, error) {
 	return response.Body, nil
 }
 
-func processFile(fileHeader *multipart.FileHeader) (io.Reader, error) {
+func processFile(fileHeader *multipart.FileHeader) (io.ReadCloser, error) {
 	file, err := fileHeader.Open()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %v", err)
 	}
-	defer file.Close()
 
 	return file, nil
 }
