@@ -84,7 +84,7 @@ func Listen() {
 	})
 
 	mux.HandleFunc(apiPath+"/torrents/delete", func(w http.ResponseWriter, r *http.Request) {
-		hash, err := torrents.GetHash(r)
+		hash, err := torrents.GetHashes(r)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -113,7 +113,7 @@ func Listen() {
 		}
 
 		cachedFiles := cacheStore.Get(cacheKey)
-		if cachedFiles == nil {
+		if cachedFiles != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(cachedFiles)
@@ -173,7 +173,7 @@ func Listen() {
 		}
 
 		cachedProperties := cacheStore.Get(cacheKey)
-		if cachedProperties == nil {
+		if cachedProperties != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(cachedProperties)

@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"math"
 	"path/filepath"
 	"time"
 
@@ -20,7 +21,7 @@ type TorrentInfo struct {
 	DownloadSpeed      int64   `json:"dlspeed"`
 	Downloaded         int64   `json:"downloaded"`
 	DownloadedSession  int64   `json:"downloaded_session"`
-	ETA                int64   `json:"eta"`
+	Eta                int64   `json:"eta"`
 	FirstLastPiecePrio bool    `json:"f_l_piece_prio"`
 	ForceStart         bool    `json:"force_start"`
 	Hash               string  `json:"hash"`
@@ -64,45 +65,36 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	}
 
 	if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
-		state = "checkingUP"
-	}
-
-	addedOn, err := time.Parse(time.RFC3339Nano, torrent.Added)
-	if err != nil {
-		return TorrentInfo{}, err
+		state = "missingFiles"
 	}
 
 	contentPath := filepath.Join(settings.QDebrid.SavePath, torrent.ID)
 
 	bytesTotal := int64(torrent.Bytes)
 	bytesDone := int64(float64(torrent.Bytes) * (torrent.Progress / 100))
+
 	eta := int64(60 * 60 * 24 * 365)
-
-	torrentInfo := TorrentInfo{
-		AddedOn:           addedOn.Unix(),
-		AmountLeft:        bytesTotal - bytesDone,
-		Category:          settings.QDebrid.CategoryName,
-		ContentPath:       contentPath,
-		DownloadSpeed:     int64(torrent.Speed),
-		Downloaded:        bytesDone,
-		DownloadedSession: bytesDone,
-		Hash:              torrent.ID, // Should be hash but for /torrents/info i pass ID
-		ETA:               eta,
-		LastActivity:      time.Now().Unix(),
-		Name:              torrent.Filename,
-		NumSeeds:          int64(torrent.Seeders),
-		Progress:          torrent.Progress / 100,
-		SavePath:          contentPath,
-		Size:              bytesTotal,
-		State:             state,
-		TimeActive:        time.Now().Unix() - addedOn.Unix(),
-		TotalSize:         bytesTotal,
-	}
-
 	if torrent.Status == "downloading" {
 		if torrent.Speed < 0 {
-			torrentInfo.ETA = (bytesTotal - bytesDone) / int64(torrent.Speed)
+			eta = (bytesTotal - bytesDone) / int64(torrent.Speed)
 		}
+	}
+
+	progress := float64(torrent.Progress) / 100
+
+	torrentInfo := TorrentInfo{
+		Hash:         torrent.ID,
+		Name:         torrent.Filename,
+		Size:         int64(torrent.Bytes),
+		Progress:     progress,
+		Eta:          eta,
+		State:        state,
+		Category:     settings.QDebrid.CategoryName,
+		SavePath:     contentPath,
+		ContentPath:  contentPath,
+		Ratio:        math.MaxInt64,
+		RatioLimit:   -2,
+		LastActivity: time.Now().Unix(),
 	}
 
 	if torrent.Status == "downloaded" {
@@ -111,9 +103,7 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 			return TorrentInfo{}, err
 		}
 
-		torrentInfo.SeenComplete = endedOn.Unix()
-		torrentInfo.CompletionOn = endedOn.Unix()
-		torrentInfo.Completed = bytesTotal
+		torrentInfo.LastActivity = endedOn.Unix()
 	}
 
 	return torrentInfo, nil

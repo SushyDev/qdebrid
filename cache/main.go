@@ -65,5 +65,5 @@ func (instance *Cache) Store(key string, entry Entry) {
 }
 
 func (instance *Cache) Clear() {
-	instance.cache = &CacheMap{}
+	instance.cache.m.Clear()
 }
