@@ -92,7 +92,7 @@ settings:
     # Minimum file size in bytes. (500MB)
     min_file_size: 500000000
 
-   # Log level for the application (e.g., info, debug, warn)
+    # Log level for the application (e.g., info, debug, warn)
     log_level: "info" 
   
   real_debrid:
