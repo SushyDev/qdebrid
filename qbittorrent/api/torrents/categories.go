@@ -12,9 +12,11 @@ type category struct {
 type categories map[string]category
 
 func list() categories {
+	categoryName := settings.QDebrid.CategoryName
+
 	return map[string]category{
-		"main": {
-			Name:     "main",
+		categoryName: {
+			Name:     categoryName,
 			SavePath: settings.QDebrid.SavePath,
 		},
 	}

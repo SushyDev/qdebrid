@@ -13,16 +13,22 @@ type QDebrid struct {
 	Host string `yaml:"host" default:""`
 	Port int    `yaml:"port" default:"8080"`
 
-	ResponseCacheTTL string `yaml:"response_cache_ttl" default:"5m"`
-
+	// Recommended to leave default. Category name for the *Arrs
 	CategoryName string `yaml:"category_name" default:"qdebrid"`
-	SavePath     string `yaml:"save_path" default:"/mnt/debrid_drive/new_torrents"`
 
+	// Parent directory where all your media gets added
+	SavePath string `yaml:"save_path" default:"/mnt/fvs/debrid_drive/media_manager"`
+
+	// Recommended to leave on true unless unavoidable. Checks if the files are available on disk and updates the status accordingly for the *Arrs
 	ValidatePaths bool `yaml:"validate_paths" default:"true"`
 
-	AllowUncached    bool     `yaml:"allow_uncached" default:"false"`
+	// Monentarily deprecated: Checks the instantAvailability api, reject if not available
+	AllowUncached bool `yaml:"allow_uncached" default:"false"`
+
+	// Allowed file types to be considered to select when adding in RD
 	AllowedFileTypes []string `yaml:"allowed_file_types" default:"[mkv, mp4]"`
 
+	// Minimum file size to be considered to select when adding in RD
 	MinFileSize int `yaml:"min_file_size" default:"500000000"` // In Bytes (500MB)
 
 	LogLevel string `yaml:"log_level" default:"info"`
