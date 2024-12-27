@@ -30,13 +30,14 @@ func GetHash(request *http.Request) (string, error) {
 	return request.FormValue("hash"), nil
 }
 
-func GetHashes(request *http.Request) (string, error) {
+func GetHashes(request *http.Request) ([]string, error) {
 	err := request.ParseForm()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return request.FormValue("hashes"), nil
+	hashes := request.FormValue("hashes")
+	return strings.Split(hashes, "|"), nil
 }
 
 func DecodeAuthHeader(request *http.Request) (string, string, error) {

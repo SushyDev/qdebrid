@@ -84,24 +84,25 @@ func Listen() {
 	})
 
 	mux.HandleFunc(apiPath+"/torrents/delete", func(w http.ResponseWriter, r *http.Request) {
-		hash, err := torrents.GetHashes(r)
+		hashes, err := torrents.GetHashes(r)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		err = torrents.Delete(apiInstance.RealDebridClient, hash)
-		if err != nil {
-			logger.Error(err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		for _, hash := range hashes {
+			err = torrents.Delete(apiInstance.RealDebridClient, hash)
+			if err != nil {
+				logger.Error(err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		cacheStore.Clear()
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
 	})
 
 	mux.HandleFunc(apiPath+"/torrents/files", func(w http.ResponseWriter, r *http.Request) {
