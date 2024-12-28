@@ -40,6 +40,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=tag
+            type=semver,pattern={{version}}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
             org.opencontainers.image.version=${{ github.sha }}
@@ -52,10 +53,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Add release tag
-        if: github.event_name == 'release'
-        run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}

@@ -9,5 +9,3 @@ require (
 )
 
 require go.uber.org/multierr v1.11.0 // indirect
-
-replace github.com/sushydev/real_debrid_go => /Users/sushy/Documents/projects/real_debrid_go
