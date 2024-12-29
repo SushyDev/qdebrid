@@ -59,13 +59,15 @@ type TorrentInfo struct {
 func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	state := mapRealDebridStatus(torrent.Status)
 
-	pathExists, err := pathExists(torrent.ID)
-	if err != nil {
-		return TorrentInfo{}, err
-	}
+	if settings.QDebrid.ValidatePaths {
+		pathExists, err := pathExists(torrent.ID)
+		if err != nil {
+			pathExists = false
+		}
 
-	if state == "pausedUP" && settings.QDebrid.ValidatePaths && !pathExists {
-		state = "missingFiles"
+		if state == "pausedUP" && !pathExists {
+			state = "missingFiles"
+		}
 	}
 
 	contentPath := filepath.Join(settings.QDebrid.SavePath, torrent.ID)

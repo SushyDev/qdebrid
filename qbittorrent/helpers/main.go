@@ -12,11 +12,11 @@ func pathExists(path string) (bool, error) {
 	directory := filepath.Join(settings.QDebrid.SavePath, path)
 
 	_, err := os.Stat(directory)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false, nil
 	}
 
-	return true, err
+	return true, nil
 }
 
 func mapRealDebridStatus(status string) string {

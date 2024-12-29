@@ -6,6 +6,8 @@ github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKs
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/sushydev/real_debrid_go v1.0.0 h1:1zU9G3KmGZrKCSwprC4ivSVPREXN052hypxrP4SpR+g=
 github.com/sushydev/real_debrid_go v1.0.0/go.mod h1:9Tst1Kkq1dDU/ErSYjheu/hJmNmEc0bGdoOy/OGbg4M=
+github.com/sushydev/real_debrid_go v1.0.1 h1:IC+CW7YroKzSfxpRCPd+NiiYcAn9A22CkqLF6rt43c8=
+github.com/sushydev/real_debrid_go v1.0.1/go.mod h1:9Tst1Kkq1dDU/ErSYjheu/hJmNmEc0bGdoOy/OGbg4M=
 go.uber.org/goleak v1.2.0 h1:xqgm/S+aQvhWFTtR0XK3Jvg7z8kGV8P4X14IzwN3Eqk=
 go.uber.org/goleak v1.2.0/go.mod h1:XJYK+MuIchqpmGmUSAzotztawfKvYLUIgg7guXrwVUo=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
