@@ -27,12 +27,12 @@ qDebrid creates a 'fake' QBitTorrent server with the endpoints necessary for *Ar
 
 ### Docker Setup
 
-The image for this project is available on Docker at `ghcr.io/sushydev/qdebrid:main`. Below is an example of a `docker-compose.yml` file to set up the project:
+The image for this project is available on Docker at `ghcr.io/sushydev/qdebrid:latest`. Below is an example of a `docker-compose.yml` file to set up the project:
 
 ```yaml
 qdebrid:
   container_name: qdebrid
-  image: ghcr.io/sushydev/qdebrid:main
+  image: ghcr.io/sushydev/qdebrid:latest
   restart: unless-stopped
   network_mode: host  # Preferable if using a specific network
   volumes:
