@@ -37,11 +37,15 @@ func Files(client *real_debrid.Client, hash string) ([]byte, error) {
 
 	var files = []fileResponse{}
 	for index, torrentFile := range torrentInfo.Files {
+		if torrentFile.Selected == 0 {
+			continue
+		}
+
 		file := fileResponse{
 			Index:        index,
 			Name:         torrentFile.Path,
 			Size:         torrentFile.Bytes,
-			Progress:     float64(torrentInfo.Progress),
+			Progress:     torrentInfo.Progress,
 			Priority:     Normal,
 			IsSeed:       torrentInfo.Seeders > 0,
 			PieceRange:   [2]int{0, 0},

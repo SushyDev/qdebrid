@@ -7,18 +7,22 @@ import (
 	"net/http"
 	"net/url"
 	"qdebrid/cache"
-	"qdebrid/qbittorrent/api"
+	"qdebrid/config"
 	"qdebrid/qbittorrent/api/app"
 	"qdebrid/qbittorrent/api/auth"
 	"qdebrid/qbittorrent/api/torrents"
 	"sort"
 	"strings"
 	"time"
+
+	real_debrid "github.com/sushydev/real_debrid_go"
 )
 
 var apiPath = "/api/v2"
 
 type HandlerFunc func() []byte
+
+var settings = config.GetSettings()
 
 func registerHandler(mux *http.ServeMux, path string, handler HandlerFunc) {
 	fmt.Println("Registering handler for ", path)
@@ -36,10 +40,7 @@ func Listen() {
 
 	cacheStore := cache.NewCache()
 
-	apiInstance := api.New()
-	logger := apiInstance.GetLogger()
-
-	torrentsModule := torrents.New(apiInstance)
+	client := real_debrid.NewClient(settings.RealDebrid.Token)
 
 	// Auth
 	registerHandler(mux, fmt.Sprintf("%s%s", apiPath, "/auth/login"), auth.Login)
@@ -92,7 +93,7 @@ func Listen() {
 		}
 
 		for _, hash := range hashes {
-			err = torrents.Delete(apiInstance.RealDebridClient, hash)
+			err = torrents.Delete(client, hash)
 			if err != nil {
 				logger.Error(err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -128,7 +129,7 @@ func Listen() {
 			return
 		}
 
-		files, err := torrents.Files(apiInstance.RealDebridClient, hash)
+		files, err := torrents.Files(client, hash)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -153,7 +154,7 @@ func Listen() {
 			return
 		}
 
-		info, err := torrents.Info(apiInstance.RealDebridClient, cacheStore, host, token)
+		info, err := torrents.Info(client, cacheStore, host, token)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -188,7 +189,7 @@ func Listen() {
 			return
 		}
 
-		properties, err := torrents.Properties(apiInstance.RealDebridClient, hash)
+		properties, err := torrents.Properties(client, hash)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -208,12 +209,12 @@ func Listen() {
 	host := ""
 	port := "8080"
 
-	if apiInstance.Settings.QDebrid.Host != "" {
-		host = apiInstance.Settings.QDebrid.Host
+	if settings.QDebrid.Host != "" {
+		host = settings.QDebrid.Host
 	}
 
-	if apiInstance.Settings.QDebrid.Port != 0 {
-		port = fmt.Sprintf("%d", apiInstance.Settings.QDebrid.Port)
+	if settings.QDebrid.Port != 0 {
+		port = fmt.Sprintf("%d", settings.QDebrid.Port)
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port)

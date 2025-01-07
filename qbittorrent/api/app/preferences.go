@@ -4,10 +4,15 @@ import (
 	"encoding/json"
 )
 
-type Config struct{}
+type Config struct{
+	DhtEnabled bool `json:"dht"`
+}
 
 func Preferences() []byte {
-	config := Config{}
+	config := Config{
+		// Allow magnets without trackers
+		DhtEnabled: true,
+	}
 
 	jsonData, err := json.Marshal(config)
 	if err != nil {
