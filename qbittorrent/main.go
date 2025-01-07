@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"qdebrid/cache"
+	"qdebrid/logger"
 	"qdebrid/config"
 	"qdebrid/qbittorrent/api/app"
 	"qdebrid/qbittorrent/api/auth"
@@ -42,6 +43,8 @@ func Listen() {
 
 	client := real_debrid.NewClient(settings.RealDebrid.Token)
 
+	logger := logger.Sugar()
+
 	// Auth
 	registerHandler(mux, fmt.Sprintf("%s%s", apiPath, "/auth/login"), auth.Login)
 
@@ -58,7 +61,7 @@ func Listen() {
 			return
 		}
 
-		response, err := torrentsModule.Add(entries)
+		response, err := torrents.Add(entries)
 		if err != nil {
 			logger.Error(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -219,7 +222,7 @@ func Listen() {
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 
-	apiInstance.GetLogger().Info("Listening on ", addr)
+	logger.Info("Listening on ", addr)
 	http.ListenAndServe(addr, mux)
 }
 

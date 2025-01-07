@@ -5,18 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"qdebrid/config"
-	"qdebrid/qbittorrent/api"
 	"strings"
 )
 
 type Module struct {
-	*api.Api
 }
 
-func New(api *api.Api) *Module {
-	return &Module{
-		Api: api,
-	}
+func New() *Module {
+	return &Module{}
 }
 
 var settings = config.GetSettings()

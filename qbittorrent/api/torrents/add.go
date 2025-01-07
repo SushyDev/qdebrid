@@ -6,11 +6,15 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"qdebrid/logger"
 	"strconv"
 	"strings"
 
+	real_debrid "github.com/sushydev/real_debrid_go"
 	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
+
+var realDebridClient = real_debrid.NewClient(settings.RealDebrid.Token)
 
 func GetEntries(r *http.Request) (entries, error) {
 	entries := entries{}
@@ -42,30 +46,30 @@ func GetEntries(r *http.Request) (entries, error) {
 	return entries, nil
 }
 
-func (module *Module) Add(entries entries) ([]byte, error) {
-	logger := module.GetLogger()
+func Add(entries entries) ([]byte, error) {
+	logger := logger.Sugar()
 
 	logger.Info("Received request to add torrent(s)")
 
-	addedUrlTorrentIds, err := module.addFromUrls(entries.urls)
+	addedUrlTorrentIds, err := addFromUrls(entries.urls)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to add torrents from urls: %v", err)
 	}
 
-	addedFileIds, err := module.addFromFiles(entries.files)
+	addedFileIds, err := addFromFiles(entries.files)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to add torrents from files: %v", err)
 	}
 
 	for _, torrentId := range addedUrlTorrentIds {
-		err = module.selectFiles(torrentId)
+		err = selectFiles(torrentId)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to select files: %v", err)
 		}
 	}
 
 	for _, torrentId := range addedFileIds {
-		err = module.selectFiles(torrentId)
+		err = selectFiles(torrentId)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to select files: %v", err)
 		}
@@ -80,12 +84,12 @@ func (module *Module) Add(entries entries) ([]byte, error) {
 
 // --- Helpers
 
-func (module *Module) addFromUrls(urls []string) ([]string, error) {
+func addFromUrls(urls []string) ([]string, error) {
 	torrentIds := make([]string, 0)
 
 	for _, url := range urls {
 		if strings.HasPrefix(url, "magnet") {
-			response, err := real_debrid_api.AddMagnet(module.RealDebridClient, url)
+			response, err := real_debrid_api.AddMagnet(realDebridClient, url)
 			if err != nil {
 				return torrentIds, err
 			}
@@ -101,7 +105,7 @@ func (module *Module) addFromUrls(urls []string) ([]string, error) {
 				return torrentIds, err
 			}
 
-			response, err := real_debrid_api.AddTorrent(module.RealDebridClient, file)
+			response, err := real_debrid_api.AddTorrent(realDebridClient, file)
 			if err != nil {
 				return torrentIds, err
 			}
@@ -119,11 +123,11 @@ func (module *Module) addFromUrls(urls []string) ([]string, error) {
 	return torrentIds, nil
 }
 
-func (module *Module) addFromFiles(files []io.ReadCloser) ([]string, error) {
+func addFromFiles(files []io.ReadCloser) ([]string, error) {
 	torrentIds := make([]string, 0)
 
 	for _, file := range files {
-		response, err := real_debrid_api.AddTorrent(module.RealDebridClient, file)
+		response, err := real_debrid_api.AddTorrent(realDebridClient, file)
 		if err != nil {
 			return torrentIds, err
 		}
@@ -134,36 +138,36 @@ func (module *Module) addFromFiles(files []io.ReadCloser) ([]string, error) {
 	return torrentIds, nil
 }
 
-func (module *Module) selectFiles(torrentId string) error {
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(module.RealDebridClient, torrentId)
+func selectFiles(torrentId string) error {
+	torrentInfo, err := real_debrid_api.GetTorrentInfo(realDebridClient, torrentId)
 	if err != nil {
 		return err
 	}
 
-	allowedFileIds, err := module.getAllowedFileIds(torrentInfo)
+	allowedFileIds, err := getAllowedFileIds(torrentInfo)
 	if err != nil {
 		return err
 	}
 
 	fileIds := strings.Join(allowedFileIds, ",")
 
-	real_debrid_api.SelectFiles(module.RealDebridClient, torrentId, fileIds)
+	real_debrid_api.SelectFiles(realDebridClient, torrentId, fileIds)
 
 	return nil
 }
 
-func (module *Module) getAllowedFileIds(torrentInfo *real_debrid_api.TorrentInfo) ([]string, error) {
-	if len(module.Settings.QDebrid.AllowedFileTypes) == 0 {
+func getAllowedFileIds(torrentInfo *real_debrid_api.TorrentInfo) ([]string, error) {
+	if len(settings.QDebrid.AllowedFileTypes) == 0 {
 		return []string{"all"}, nil
 	}
 
 	var ids []string
 	for _, file := range torrentInfo.Files {
-		if file.Bytes <= module.Settings.QDebrid.MinFileSize {
+		if file.Bytes <= settings.QDebrid.MinFileSize {
 			continue
 		}
 
-		for _, extension := range module.Settings.QDebrid.AllowedFileTypes {
+		for _, extension := range settings.QDebrid.AllowedFileTypes {
 			if !strings.HasSuffix(file.Path, extension) {
 				continue
 			}
