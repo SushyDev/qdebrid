@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"qdebrid/config"
+
+	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
 
 var settings = config.GetSettings()
@@ -46,4 +48,14 @@ func mapRealDebridStatus(status string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func GetTorrentIdFromHash(torrents real_debrid_api.Torrents, hash string) string {
+	for _, torrent := range torrents {
+		if torrent.Hash == hash {
+			return torrent.ID
+		}
+	}
+
+	return ""
 }

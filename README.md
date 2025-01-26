@@ -34,7 +34,7 @@ qdebrid:
   container_name: qdebrid
   image: ghcr.io/sushydev/qdebrid:latest
   restart: unless-stopped
-  network_mode: host  # Preferable if using a specific network
+  network_mode: host  # It will be better to use a specific docker network
   volumes:
     - ./qdebrid.yml:/app/config.yml  # Bind configuration
     - ./your-mount-directory:/mnt/your-mount-directory  # Make mount available for path checking

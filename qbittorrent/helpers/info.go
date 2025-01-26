@@ -85,7 +85,7 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	progress := float64(torrent.Progress) / 100
 
 	torrentInfo := TorrentInfo{
-		Hash:         torrent.ID,
+		Hash:         torrent.Hash,
 		Name:         torrent.Filename,
 		Size:         int64(torrent.Bytes),
 		Progress:     progress,
@@ -97,6 +97,11 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 		Ratio:        math.MaxInt64,
 		RatioLimit:   -2,
 		LastActivity: time.Now().Unix(),
+	}
+
+	addedOn, err := time.Parse(time.RFC3339Nano, torrent.Added)
+	if err == nil {
+		torrentInfo.AddedOn = addedOn.Unix()
 	}
 
 	if torrent.Status == "downloaded" {
