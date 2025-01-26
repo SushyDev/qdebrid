@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"encoding/json"
+	"qdebrid/qbittorrent/helpers"
 
 	real_debrid "github.com/sushydev/real_debrid_go"
 	real_debrid_api "github.com/sushydev/real_debrid_go/api"
@@ -30,7 +31,14 @@ const (
 )
 
 func Files(client *real_debrid.Client, hash string) ([]byte, error) {
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(client, hash)
+	torrents, err := real_debrid_api.GetTorrents(client)
+	if err != nil {
+		return nil, err
+	}
+
+	id := helpers.GetTorrentIdFromHash(*torrents, hash)
+
+	torrentInfo, err := real_debrid_api.GetTorrentInfo(client, id)
 	if err != nil {
 		return nil, err
 	}

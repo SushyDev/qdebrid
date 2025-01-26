@@ -9,7 +9,14 @@ import (
 )
 
 func Properties(client *real_debrid.Client, hash string) ([]byte, error) {
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(client, hash)
+	torrents, err := real_debrid_api.GetTorrents(client)
+	if err != nil {
+		return nil, err
+	}
+
+	id := helpers.GetTorrentIdFromHash(*torrents, hash)
+
+	torrentInfo, err := real_debrid_api.GetTorrentInfo(client, id)
 	if err != nil {
 		return nil, err
 	}
