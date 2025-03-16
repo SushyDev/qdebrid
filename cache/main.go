@@ -68,6 +68,7 @@ func (instance *Cache) Get(key string) []byte {
 }
 
 func (instance *Cache) Store(key string, entry Entry) {
+	return
 	instance.cache.Store(key, entry)
 }
 
