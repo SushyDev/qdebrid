@@ -1,8 +1,9 @@
 package helpers
 
 import (
-	"math"
+	"fmt"
 	"path/filepath"
+	"qdebrid/debrid/client/real_debrid"
 	"time"
 
 	"github.com/sushydev/real_debrid_go/api"
@@ -56,8 +57,9 @@ type TorrentInfo struct {
 	UploadSpeed        int64   `json:"upspeed"`
 }
 
+
 func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
-	state := mapRealDebridStatus(torrent.Status)
+	state := real_debrid.MapRealDebridStatus(torrent.Status)
 
 	if settings.QDebrid.ValidatePaths {
 		pathExists, err := pathExists(torrent.ID)
@@ -85,18 +87,21 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 	progress := float64(torrent.Progress) / 100
 
 	torrentInfo := TorrentInfo{
-		Hash:         torrent.Hash,
-		Name:         torrent.Filename,
-		Size:         int64(torrent.Bytes),
-		Progress:     progress,
-		Eta:          eta,
-		State:        state,
-		Category:     settings.QDebrid.CategoryName,
-		SavePath:     contentPath,
-		ContentPath:  contentPath,
-		Ratio:        math.MaxInt64,
-		RatioLimit:   -2,
-		LastActivity: time.Now().Unix(),
+		Hash:              torrent.Hash,
+		Name:              torrent.Filename,
+		MagnetURI:         fmt.Sprintf("magnet:?xt=urn:btih:%s", torrent.Hash),
+		Size:              int64(torrent.Bytes),
+		Progress:          progress,
+		Downloaded:        bytesDone,
+		DownloadedSession: 1,
+		Eta:               eta,
+		State:             state,
+		Category:          settings.QDebrid.CategoryName,
+		SavePath:          settings.QDebrid.SavePath,
+		ContentPath:       contentPath,
+		Ratio:             1,
+		RatioLimit:        1,
+		MaxRatio:          1,
 	}
 
 	addedOn, err := time.Parse(time.RFC3339Nano, torrent.Added)
@@ -111,6 +116,9 @@ func ParseTorrentInfo(torrent *api.Torrent) (TorrentInfo, error) {
 		}
 
 		torrentInfo.LastActivity = endedOn.Unix()
+		torrentInfo.Availability = 1
+		torrentInfo.Completed = 1
+		torrentInfo.CompletionOn = endedOn.Unix()
 	}
 
 	return torrentInfo, nil

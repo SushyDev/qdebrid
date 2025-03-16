@@ -1,29 +1,31 @@
 package torrents
 
 import (
+	"net/http"
+	"qdebrid/cache"
 	"qdebrid/qbittorrent/helpers"
 
-	real_debrid "github.com/sushydev/real_debrid_go"
-	real_debrid_api "github.com/sushydev/real_debrid_go/api"
+	"qdebrid/debrid/client/real_debrid"
 )
 
-func Delete(client *real_debrid.Client, hash string) error {
-	torrents, err := real_debrid_api.GetTorrents(client)
+func Delete(w http.ResponseWriter, r *http.Request, c *cache.Cache) {
+	hashes, err := helpers.GetHashes(r)
 	if err != nil {
-		return err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	id := helpers.GetTorrentIdFromHash(*torrents, hash)
+	client := real_debrid.GetClient()
 
-	torrent, err := real_debrid_api.GetTorrentInfo(client, id)
-	if err != nil {
-		return err
+	for _, hash := range hashes {
+		err = client.DeleteByHash(hash)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	err = real_debrid_api.Delete(client, torrent.ID)
-	if err != nil {
-		return err
-	}
+	c.Clear()
 
-	return nil
+	w.WriteHeader(http.StatusOK)
 }

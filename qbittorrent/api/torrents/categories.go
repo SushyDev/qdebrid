@@ -2,6 +2,7 @@ package torrents
 
 import (
 	"encoding/json"
+	"net/http"
 )
 
 type category struct {
@@ -10,6 +11,19 @@ type category struct {
 }
 
 type categories map[string]category
+
+func Categories(w http.ResponseWriter, r *http.Request) {
+	categories := list()
+
+	jsonData, err := json.Marshal(categories)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
 
 func list() categories {
 	categoryName := settings.QDebrid.CategoryName
@@ -20,15 +34,4 @@ func list() categories {
 			SavePath: settings.QDebrid.SavePath,
 		},
 	}
-}
-
-func Categories() ([]byte, error) {
-	categories := list()
-
-	jsonData, err := json.Marshal(categories)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonData, err
 }

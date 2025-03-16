@@ -6,20 +6,53 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"qdebrid/logger"
-	"strconv"
+	"qdebrid/cache"
+	"qdebrid/debrid/client/real_debrid"
 	"strings"
-
-	real_debrid "github.com/sushydev/real_debrid_go"
-	real_debrid_api "github.com/sushydev/real_debrid_go/api"
 )
 
-var realDebridClient = real_debrid.NewClient(settings.RealDebrid.Token)
+func Add(w http.ResponseWriter, r *http.Request, c *cache.Cache) {
+	urls, files, err := getEntries(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-func GetEntries(r *http.Request) (entries, error) {
-	entries := entries{}
+	var ids []string
 
+	client := real_debrid.GetClient()
+
+	for _, url := range urls {
+		id, err := client.AddTorrentByUrl(url)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		ids = append(ids, id)
+	}
+
+	for _, file := range files {
+		id, err := client.AddTorrentByFile(file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		ids = append(ids, id)
+	}
+
+	c.Clear()
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Ok."))
+}
+
+func getEntries(r *http.Request) ([]string, []io.ReadCloser, error) {
 	validateAndParseForm(r)
+
+	var returnUrls []string
+	var returnFiles []io.ReadCloser
 
 	contentType := parseContentType(r)
 
@@ -27,7 +60,7 @@ func GetEntries(r *http.Request) (entries, error) {
 	if urls != "" {
 		lines := splitString(urls)
 		for _, url := range lines {
-			entries.urls = append(entries.urls, url)
+			returnUrls = append(returnUrls, url)
 		}
 	}
 
@@ -36,164 +69,14 @@ func GetEntries(r *http.Request) (entries, error) {
 		for _, fileHeader := range files {
 			file, err := processFile(fileHeader)
 			if err != nil {
-				return entries, fmt.Errorf("failed to process file: %s, error: %v", fileHeader.Filename, err)
+				return nil, nil, fmt.Errorf("failed to process file: %s, error: %v", fileHeader.Filename, err)
 			}
 
-			entries.files = append(entries.files, file)
+			returnFiles = append(returnFiles, file)
 		}
 	}
 
-	return entries, nil
-}
-
-func Add(entries entries) ([]byte, error) {
-	logger := logger.Sugar()
-
-	logger.Info("Received request to add torrent(s)")
-
-	addedUrlTorrentIds, err := addFromUrls(entries.urls)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to add torrents from urls: %v", err)
-	}
-
-	addedFileIds, err := addFromFiles(entries.files)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to add torrents from files: %v", err)
-	}
-
-	for _, torrentId := range addedUrlTorrentIds {
-		err = selectFiles(torrentId)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to select files: %v", err)
-		}
-	}
-
-	for _, torrentId := range addedFileIds {
-		err = selectFiles(torrentId)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to select files: %v", err)
-		}
-	}
-
-	added := len(addedUrlTorrentIds) + len(addedFileIds)
-
-	logger.Info(fmt.Sprintf("Added %d torrents", added))
-
-	return []byte(fmt.Sprintf("Successfully added %d torrent(s)", added)), nil
-}
-
-// --- Helpers
-
-func addFromUrls(urls []string) ([]string, error) {
-	torrentIds := make([]string, 0)
-
-	for _, url := range urls {
-		if strings.HasPrefix(url, "magnet") {
-			response, err := real_debrid_api.AddMagnet(realDebridClient, url)
-			if err != nil {
-				return torrentIds, err
-			}
-
-			torrentIds = append(torrentIds, response.Id)
-
-			continue
-		}
-
-		if strings.HasPrefix(url, "http") {
-			file, err := fetchTorrentFile(url)
-			if err != nil {
-				return torrentIds, err
-			}
-
-			response, err := real_debrid_api.AddTorrent(realDebridClient, file)
-			if err != nil {
-				return torrentIds, err
-			}
-
-			file.Close()
-
-			torrentIds = append(torrentIds, response.Id)
-
-			continue
-		}
-
-		return torrentIds, fmt.Errorf("unsupported URL format: %s", url)
-	}
-
-	return torrentIds, nil
-}
-
-func addFromFiles(files []io.ReadCloser) ([]string, error) {
-	torrentIds := make([]string, 0)
-
-	for _, file := range files {
-		response, err := real_debrid_api.AddTorrent(realDebridClient, file)
-		if err != nil {
-			return torrentIds, err
-		}
-
-		torrentIds = append(torrentIds, response.Id)
-	}
-
-	return torrentIds, nil
-}
-
-func selectFiles(torrentId string) error {
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(realDebridClient, torrentId)
-	if err != nil {
-		return err
-	}
-
-	allowedFileIds, err := getAllowedFileIds(torrentInfo)
-	if err != nil {
-		return err
-	}
-
-	fileIds := strings.Join(allowedFileIds, ",")
-
-	real_debrid_api.SelectFiles(realDebridClient, torrentId, fileIds)
-
-	return nil
-}
-
-func getAllowedFileIds(torrentInfo *real_debrid_api.TorrentInfo) ([]string, error) {
-	if len(settings.QDebrid.AllowedFileTypes) == 0 {
-		return []string{"all"}, nil
-	}
-
-	var ids []string
-	for _, file := range torrentInfo.Files {
-		if file.Bytes <= settings.QDebrid.MinFileSize {
-			continue
-		}
-
-		for _, extension := range settings.QDebrid.AllowedFileTypes {
-			if !strings.HasSuffix(file.Path, extension) {
-				continue
-			}
-
-			ids = append(ids, strconv.Itoa(file.ID))
-		}
-	}
-
-	if len(ids) == 0 {
-		return nil, fmt.Errorf("No accepted files found")
-	}
-
-	return ids, nil
-}
-
-func fetchTorrentFile(url string) (io.ReadCloser, error) {
-	response, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch torrent: status code %d", response.StatusCode)
-	}
-
-	return response.Body, nil
+	return returnUrls, returnFiles, nil
 }
 
 func processFile(fileHeader *multipart.FileHeader) (io.ReadCloser, error) {
@@ -212,11 +95,6 @@ func splitString(input string) []string {
 		result = append(result, scanner.Text())
 	}
 	return result
-}
-
-type entries struct {
-	urls  []string
-	files []io.ReadCloser
 }
 
 func validateAndParseForm(r *http.Request) error {

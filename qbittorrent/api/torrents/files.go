@@ -2,13 +2,17 @@ package torrents
 
 import (
 	"encoding/json"
-	"qdebrid/qbittorrent/helpers"
-
-	real_debrid "github.com/sushydev/real_debrid_go"
-	real_debrid_api "github.com/sushydev/real_debrid_go/api"
+	"net/http"
+	"qdebrid/cache"
+	"qdebrid/debrid/client/real_debrid"
+	"time"
 )
 
 // https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-contents
+
+type FileRequest struct {
+	Hash string `json:"hash"`
+}
 
 type fileResponse struct {
 	Index        int      `json:"index"`        // File index
@@ -30,43 +34,60 @@ const (
 	Maximal       priority = 7
 )
 
-func Files(client *real_debrid.Client, hash string) ([]byte, error) {
-	torrents, err := real_debrid_api.GetTorrents(client)
+func Files(w http.ResponseWriter, r *http.Request, c *cache.Cache) {
+	cacheKey, err := cache.GetCacheKeyByRequest(r)
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	id := helpers.GetTorrentIdFromHash(*torrents, hash)
-
-	torrentInfo, err := real_debrid_api.GetTorrentInfo(client, id)
-	if err != nil {
-		return nil, err
+	cachedData := c.Get(cacheKey)
+	if cachedData != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(cachedData)
+		return
 	}
 
-	var files = []fileResponse{}
-	for index, torrentFile := range torrentInfo.Files {
-		if torrentFile.Selected == 0 {
+	client := real_debrid.GetClient()
+
+	hash := r.FormValue("hash")
+	torrentInfo, err := client.GetTorrentInfo(hash)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var ding = []fileResponse{}
+	for index, file := range torrentInfo.Files {
+		if file.Selected == 0 {
 			continue
 		}
 
-		file := fileResponse{
+		 ding = append(ding, fileResponse{
 			Index:        index,
-			Name:         torrentFile.Path,
-			Size:         torrentFile.Bytes,
+			Name:         file.Path,
+			Size:         file.Bytes,
 			Progress:     torrentInfo.Progress,
 			Priority:     Normal,
 			IsSeed:       torrentInfo.Seeders > 0,
 			PieceRange:   [2]int{0, 0},
 			Availability: 100,
-		}
-
-		files = append(files, file)
+		})
 	}
 
-	jsonData, err := json.Marshal(files)
+	jsonData, err := json.Marshal(ding)
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	return jsonData, nil
+	c.Store(cacheKey, cache.Entry{
+		Value:      jsonData,
+		Expiration: time.Now().Add(15 * time.Minute),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
 }

@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var config Config
+var config *Config
 
 func setFieldDefault(field reflect.Value, fieldType reflect.StructField) {
 	defaultTag, ok := fieldType.Tag.Lookup("default")
@@ -66,7 +66,7 @@ func setDefaultsRecursive(value reflect.Value) {
 		return
 	}
 
-	for i := 0; i < value.NumField(); i++ {
+	for i := range value.NumField() {
 		field := value.Field(i)
 		typ := value.Type().Field(i)
 
@@ -86,7 +86,7 @@ func setDefaultsRecursive(value reflect.Value) {
 	}
 }
 
-func setDefaults(v interface{}) {
+func setDefaults(v any) {
 	value := reflect.ValueOf(v)
 
 	if value.Kind() != reflect.Ptr || value.IsNil() {
@@ -96,8 +96,8 @@ func setDefaults(v interface{}) {
 	setDefaultsRecursive(value.Elem())
 }
 
-func GetConfig() Config {
-	if !reflect.DeepEqual(config, Config{}) {
+func GetConfig() *Config {
+	if config != nil {
 		return config
 	}
 
@@ -125,11 +125,15 @@ func GetConfig() Config {
 		panic(err)
 	}
 
-	setDefaults(&config)
+	setDefaults(config)
 
 	return config
 }
 
 func GetSettings() Settings {
-	return GetConfig().Settings
+	if config == nil {
+		GetConfig()
+	}
+
+	return config.Settings
 }
