@@ -50,7 +50,6 @@ func Info(w http.ResponseWriter, r *http.Request, c *cache.Cache) {
 	}
 
 	var matchedTorrents []*api.Torrent
-
 	for _, torrent := range *torrents {
 		for _, record := range history {
 			if strings.EqualFold(record.DownloadID, torrent.Hash) {

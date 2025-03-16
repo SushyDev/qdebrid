@@ -52,7 +52,7 @@ func Files(w http.ResponseWriter, r *http.Request, c *cache.Cache) {
 	client := real_debrid.GetClient()
 
 	hash := r.FormValue("hash")
-	torrentInfo, err := client.GetTorrentInfo(hash)
+	torrentInfo, err := client.GetTorrentInfoByHash(hash)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

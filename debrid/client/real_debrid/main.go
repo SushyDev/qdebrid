@@ -43,7 +43,10 @@ func (t *throttledTransport) RoundTrip(req *http.Request) (*http.Response, error
 }
 
 func newThrottledTransport() *throttledTransport {
-	return &throttledTransport{}
+	return &throttledTransport{
+		Transport: http.DefaultTransport,
+		interval:  1 * time.Second,
+	}
 }
 
 type Client struct {
@@ -253,7 +256,7 @@ func getTorrentIdFromHash(torrents *real_debrid_api.Torrents, hash string) strin
 	}
 
 	for _, torrent := range *torrents {
-		if torrent.Hash == hash {
+		if strings.EqualFold(torrent.Hash, hash) {
 			return torrent.ID
 		}
 	}
