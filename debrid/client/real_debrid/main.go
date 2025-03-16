@@ -45,7 +45,7 @@ func (t *throttledTransport) RoundTrip(req *http.Request) (*http.Response, error
 func newThrottledTransport() *throttledTransport {
 	return &throttledTransport{
 		Transport: http.DefaultTransport,
-		interval:  1 * time.Second,
+		interval:  3 * time.Second,
 	}
 }
 
