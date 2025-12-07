@@ -203,6 +203,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build hash map for quick lookup
+	// Note: We use torrent.ID because that's what we return as Hash in the API
 	historyHashes := make(map[string]bool)
 	for _, record := range history {
 		historyHashes[strings.ToLower(record.DownloadID)] = true
@@ -212,7 +213,8 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	var torrentInfos []TorrentInfo
 	for _, torrent := range *torrents {
 		// Only include torrents that are in Servarr history
-		if !historyHashes[strings.ToLower(torrent.Hash)] {
+		// Compare against torrent.ID since that's what we return as Hash
+		if !historyHashes[strings.ToLower(torrent.ID)] {
 			continue
 		}
 
