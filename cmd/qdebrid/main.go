@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,12 +23,23 @@ var (
 	configPath    = flag.String("config", "", "Path to config file")
 	exampleConfig = flag.Bool("example-config", false, "Print example configuration and exit")
 	writeConfig   = flag.String("write-config", "", "Write example config to file and exit")
+	healthCheck   = flag.Bool("health-check", false, "Perform health check and exit")
 	version       = "2.0.0"
 	buildTime     = "unknown"
 )
 
 func main() {
 	flag.Parse()
+
+	// Handle health check
+	if *healthCheck {
+		if err := performHealthCheck(); err != nil {
+			fmt.Fprintf(os.Stderr, "Health check failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("OK")
+		os.Exit(0)
+	}
 
 	// Handle example config
 	if *exampleConfig {
@@ -144,6 +156,40 @@ func run(cfg *config.Config, log *zap.Logger) error {
 		}
 
 		// Real-Debrid client and cache cleanup handled by defer statements
+	}
+
+	return nil
+}
+
+func performHealthCheck() error {
+	// Load configuration to get server port
+	var cfg *config.Config
+	var err error
+
+	if *configPath != "" {
+		cfg, err = config.Load(*configPath)
+	} else {
+		cfg, err = config.LoadFromEnv()
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Always use 127.0.0.1 for health check (works inside container)
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", cfg.Server.Port)
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to health endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health endpoint returned status %d", resp.StatusCode)
 	}
 
 	return nil
