@@ -26,6 +26,7 @@ config.yml
 config.yaml
 config.local.yml
 config.local.yaml
+config.*.yml
 *.local.yml
 *.local.yaml
 
@@ -40,3 +41,6 @@ Thumbs.db
 # Go workspace
 go.work
 go.work.sum
+
+# Direnv
+/.direnv

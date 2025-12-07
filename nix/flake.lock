@@ -1,0 +1,48 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1764950072,
+        "narHash": "sha256-BmPWzogsG2GsXZtlT+MTcAWeDK5hkbGRZTeZNW42fwA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "f61125a668a320878494449750330ca58b78c557",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "sushy-lib": "sushy-lib"
+      }
+    },
+    "sushy-lib": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1764418436,
+        "narHash": "sha256-B8SbxhTF3Fhr7dKrKPSKpvT4UGLVldZSE8z6/g8PLQY=",
+        "owner": "sushydev",
+        "repo": "nix-lib",
+        "rev": "97c56fe3dd7e83dee5c3fffbb6912e674d047e14",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sushydev",
+        "repo": "nix-lib",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
