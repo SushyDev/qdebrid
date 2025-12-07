@@ -31,6 +31,7 @@ type TorrentInfo struct {
 	FirstLastPiecePrio bool    `json:"f_l_piece_prio"`
 	ForceStart         bool    `json:"force_start"`
 	Hash               string  `json:"hash"`
+	Label              string  `json:"label"` // For backwards compatibility with older Servarr
 	LastActivity       int64   `json:"last_activity"`
 	MagnetURI          string  `json:"magnet_uri"`
 	MaxRatio           float64 `json:"max_ratio"`
@@ -187,8 +188,9 @@ func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorr
 		Eta:               eta,
 		State:             state,
 		Category:          cfg.CategoryName,
-		SavePath:          savePath,    // Base directory
-		ContentPath:       contentPath, // Full path with torrent ID
+		Label:             cfg.CategoryName, // For backwards compatibility with older Servarr
+		SavePath:          savePath,         // Base directory
+		ContentPath:       contentPath,      // Full path with torrent ID
 		Ratio:             1.0,
 		RatioLimit:        -2, // -2 means use global limit
 		MaxRatio:          1.0,
