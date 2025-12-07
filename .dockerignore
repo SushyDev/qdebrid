@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.github
+
+# Build artifacts
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test files
+coverage.out
+*.coverprofile
+
+# Config files (will be mounted as volumes)
+config.yml
+*.local.yml
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Dependencies
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
