@@ -187,6 +187,32 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	var result []TorrentInfo
 	if ok, _ := h.cache.GetJSON(cacheKey, &result); ok {
 		h.logger.Debug("returning cached torrents info")
+
+		// Cache hole punching: Re-validate paths for missingFiles entries
+		// This allows status to update quickly when files appear without full cache invalidation
+		if h.config.QBittorrent.ValidatePaths {
+			needsUpdate := false
+			for i := range result {
+				if result[i].State == "missingFiles" {
+					// Extract torrent ID from the Hash field (which is the Real-Debrid ID)
+					torrentID := result[i].Hash
+					if ValidatePath(h.config.QBittorrent.SavePath, torrentID) {
+						// Path now exists! Update status to pausedUP
+						result[i].State = "pausedUP"
+						needsUpdate = true
+						h.logger.Debug("cache hole punch: path now exists",
+							zap.String("torrent_id", torrentID),
+							zap.String("name", result[i].Name))
+					}
+				}
+			}
+
+			// If we updated any entries, save back to cache
+			if needsUpdate {
+				h.cache.SetJSON(cacheKey, result, 15*time.Minute)
+			}
+		}
+
 		// Ensure we return an empty array instead of null if result is nil
 		if result == nil {
 			result = make([]TorrentInfo, 0)
@@ -282,7 +308,8 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Debug("torrents to return", zap.Int("count", len(torrentInfos)))
 
-	// Cache the result
+	// Cache the result with longer TTL
+	// Cache hole punching handles missingFiles status updates
 	h.cache.SetJSON(cacheKey, torrentInfos, 15*time.Minute)
 
 	h.respondJSON(w, http.StatusOK, torrentInfos)
