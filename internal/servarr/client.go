@@ -74,6 +74,11 @@ func (c *Client) GetHistory(ctx context.Context, baseURL string, apiKey string) 
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
+	// Ensure we return an empty array instead of nil
+	if records == nil {
+		records = make([]HistoryRecord, 0)
+	}
+
 	c.logger.Debug("fetched servarr history", zap.Int("records", len(records)))
 
 	return records, nil

@@ -176,9 +176,21 @@ func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorr
 
 	progress := rdTorrent.Progress / 100.0
 
+	// Ensure we have a name (use ID as fallback if filename is empty)
+	name := rdTorrent.Filename
+	if name == "" {
+		name = rdTorrent.ID
+	}
+
+	// Ensure we have a valid hash (use actual hash or ID)
+	hash := rdTorrent.ID
+	if hash == "" {
+		hash = rdTorrent.Hash
+	}
+
 	info := TorrentInfo{
-		Hash:              rdTorrent.ID, // Use ID as hash (dirty hack but necessary for Servarr)
-		Name:              rdTorrent.Filename,
+		Hash:              hash,
+		Name:              name,
 		MagnetURI:         fmt.Sprintf("magnet:?xt=urn:btih:%s", rdTorrent.Hash),
 		Size:              bytesTotal,
 		Progress:          progress,

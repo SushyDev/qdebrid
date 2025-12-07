@@ -21,6 +21,7 @@ type Config struct {
 	Server      ServerConfig      `yaml:"server"`
 	RealDebrid  RealDebridConfig  `yaml:"real_debrid"`
 	QBittorrent QBittorrentConfig `yaml:"qbittorrent"`
+	Data        DataConfig        `yaml:"data"`
 	Logging     LoggingConfig     `yaml:"logging"`
 	Testing     TestingConfig     `yaml:"testing"`
 }
@@ -45,6 +46,13 @@ type QBittorrentConfig struct {
 	CategoryName  string `yaml:"category_name"`
 	SavePath      string `yaml:"save_path"`
 	ValidatePaths bool   `yaml:"validate_paths"`
+}
+
+// DataConfig holds data persistence configuration
+type DataConfig struct {
+	Directory        string `yaml:"directory"`
+	CleanupMaxAge    string `yaml:"cleanup_max_age"`    // e.g., "168h" for 7 days
+	AutoSaveInterval string `yaml:"auto_save_interval"` // e.g., "5m" for 5 minutes
 }
 
 // LoggingConfig holds logging configuration
@@ -128,6 +136,18 @@ func (c *Config) SetDefaults() {
 
 	if c.QBittorrent.CategoryName == "" {
 		c.QBittorrent.CategoryName = "qdebrid"
+	}
+
+	if c.Data.Directory == "" {
+		c.Data.Directory = "./data"
+	}
+
+	if c.Data.CleanupMaxAge == "" {
+		c.Data.CleanupMaxAge = "168h" // 7 days
+	}
+
+	if c.Data.AutoSaveInterval == "" {
+		c.Data.AutoSaveInterval = "5m" // 5 minutes
 	}
 
 	if c.Logging.Level == "" {
@@ -223,6 +243,11 @@ qbittorrent:
   category_name: "qdebrid"                           # Category name shown in *Arr apps
   save_path: "/mnt/debrid/media"                     # Path where media is saved (must exist)
   validate_paths: true                                # Verify files exist on disk
+
+data:
+  directory: "./data"                                 # Directory for persistent data (history, state)
+  cleanup_max_age: "168h"                             # Remove old history entries after this duration (168h = 7 days)
+  auto_save_interval: "5m"                            # How often to auto-save history to disk
 
 logging:
   level: "info"                # Log level: debug, info, warn, error

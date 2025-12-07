@@ -46,6 +46,7 @@
 						buildInputs = [
 							pkgs.go
 							pkgs.gnumake
+							pkgs.jq
 						];
 					};
 				}

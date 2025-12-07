@@ -13,6 +13,7 @@ import (
 	"qdebrid/internal/cache"
 	"qdebrid/internal/config"
 	"qdebrid/internal/debrid"
+	"qdebrid/internal/history"
 	"qdebrid/internal/servarr"
 )
 
@@ -20,6 +21,7 @@ import (
 type Handler struct {
 	debridClient  *debrid.Client
 	servarrClient *servarr.Client
+	historyStore  *history.Store
 	cache         *cache.Cache
 	config        *config.Config
 	logger        *zap.Logger
@@ -29,6 +31,7 @@ type Handler struct {
 func NewHandler(
 	debridClient *debrid.Client,
 	servarrClient *servarr.Client,
+	historyStore *history.Store,
 	cache *cache.Cache,
 	cfg *config.Config,
 	logger *zap.Logger,
@@ -36,6 +39,7 @@ func NewHandler(
 	return &Handler{
 		debridClient:  debridClient,
 		servarrClient: servarrClient,
+		historyStore:  historyStore,
 		cache:         cache,
 		config:        cfg,
 		logger:        logger,
@@ -174,6 +178,10 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	var result []TorrentInfo
 	if ok, _ := h.cache.GetJSON(cacheKey, &result); ok {
 		h.logger.Debug("returning cached torrents info")
+		// Ensure we return an empty array instead of null if result is nil
+		if result == nil {
+			result = make([]TorrentInfo, 0)
+		}
 		h.respondJSON(w, http.StatusOK, result)
 		return
 	}
@@ -195,23 +203,40 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get Servarr history to filter
-	history, err := h.servarrClient.GetHistory(ctx, servarrHost, servarrAPIKey)
+	servarrHistory, err := h.servarrClient.GetHistory(ctx, servarrHost, servarrAPIKey)
 	if err != nil {
 		h.logger.Error("failed to get servarr history", zap.Error(err))
 		h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get history: %v", err))
 		return
 	}
 
-	// Build hash map for quick lookup
+	// Build hash map for quick lookup combining Servarr history + persistent history
 	// Note: We use torrent.ID because that's what we return as Hash in the API
 	historyHashes := make(map[string]bool)
-	for _, record := range history {
+
+	// Add from Servarr history
+	for _, record := range servarrHistory {
+		// Skip records with empty downloadId
+		if record.DownloadID == "" {
+			continue
+		}
 		historyHashes[strings.ToLower(record.DownloadID)] = true
 	}
 
+	// Add from persistent history store
+	for _, hash := range h.historyStore.GetHashes() {
+		historyHashes[strings.ToLower(hash)] = true
+	}
+
 	// Filter and convert torrents
-	var torrentInfos []TorrentInfo
+	torrentInfos := make([]TorrentInfo, 0) // Initialize to empty slice, not nil
 	for _, torrent := range *torrents {
+		// Skip torrents with empty ID (shouldn't happen but defensive check)
+		if torrent.ID == "" {
+			h.logger.Warn("skipping torrent with empty ID", zap.String("filename", torrent.Filename))
+			continue
+		}
+
 		// Only include torrents that are in Servarr history
 		// Compare against torrent.ID since that's what we return as Hash
 		if !historyHashes[strings.ToLower(torrent.ID)] {
@@ -230,6 +255,17 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 
 		info := ConvertRealDebridToTorrentInfo(torrent, &h.config.QBittorrent, state)
 		torrentInfos = append(torrentInfos, info)
+
+		// Update persistent history
+		record := &history.Record{
+			Hash:         torrent.ID,
+			DownloadID:   torrent.ID,
+			RealDebridID: torrent.ID,
+			ServarrHost:  servarrHost,
+			Status:       state,
+			Title:        torrent.Filename,
+		}
+		h.historyStore.Add(record)
 	}
 
 	// Cache the result
