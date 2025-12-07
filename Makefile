@@ -103,7 +103,17 @@ docker-run:
 	docker run --rm -p 8080:8080 \
 		-v $(PWD)/config.yml:/config/config.yml:ro \
 		--name $(DOCKER_IMAGE) \
-		$(DOCKER_IMAGE):latest
+		$(DOCKER_IMAGE):latest -config /config/config.yml
+
+## docker-test: Run all tests including integration tests in Docker
+docker-test:
+	@echo "Running tests in Docker container..."
+	docker run --rm \
+		-v $(PWD):/src \
+		-w /src \
+		golang:1.25.4-alpine \
+		sh -c "apk add --no-cache git make gcc musl-dev && go test -v -race -coverprofile=coverage.out ./..."
+	@echo "Tests complete"
 
 ## docker-compose-up: Start services with docker-compose
 docker-compose-up:

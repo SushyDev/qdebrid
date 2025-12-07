@@ -1,53 +1,46 @@
-# Stage 1: Build Stage
-FROM golang:1.23-alpine AS builder
+# --- Build app
+FROM nixos/nix:latest AS app
 
-# Install build dependencies
-RUN apk add --no-cache git make
+RUN mkdir -p /root/.config/nix && \
+    echo "experimental-features = nix-command flakes" > /root/.config/nix/nix.conf
 
-# Set the Current Working Directory inside the container
-WORKDIR /app
+RUN nix profile add nixpkgs#go
 
-# Copy go mod files
+ENV GO111MODULE=on \
+    GOPROXY=direct \
+    GOFLAGS=-mod=readonly \
+    GOTOOLCHAIN=go1.25.4+auto
+
+WORKDIR /src/app
+
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy the source code
-COPY . .
+COPY . ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -extldflags '-static'" -o /out/main ./cmd/qdebrid
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o qdebrid ./cmd/qdebrid
+# --- Build dependencies
+FROM nixos/nix:latest AS dependencies
 
-# Stage 2: Runtime Stage
-FROM alpine:latest
+RUN mkdir -p /root/.config/nix && \
+    echo "experimental-features = nix-command flakes" > /root/.config/nix/nix.conf
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /src
 
-# Create non-root user
-RUN addgroup -g 1000 qdebrid && \
-    adduser -D -u 1000 -G qdebrid qdebrid
+COPY nix ./
 
-# Set working directory
+RUN nix build ./ --out-link /out
+
+# --- Construct final image
+FROM scratch
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+ENV PATH=/bin
+
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder --chown=qdebrid:qdebrid /app/qdebrid /app/qdebrid
+COPY --from=app /out/main /bin/main
+COPY --from=dependencies /out/etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-# Create config directory
-RUN mkdir -p /config && chown qdebrid:qdebrid /config
-
-# Switch to non-root user
-USER qdebrid
-
-# Expose port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Run the application
-ENTRYPOINT ["/app/qdebrid"]
-CMD ["--config", "/config/config.yml"]
+ENTRYPOINT ["/bin/main"]
