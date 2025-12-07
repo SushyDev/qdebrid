@@ -51,10 +51,23 @@ func (h *Handler) respondJSON(w http.ResponseWriter, status int, data interface{
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	if data != nil {
-		if err := json.NewEncoder(w).Encode(data); err != nil {
-			h.logger.Error("failed to encode response", zap.Error(err))
-		}
+	// Marshal for both logging and response
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		h.logger.Error("failed to marshal response", zap.Error(err))
+		return
+	}
+
+	// Log response at debug level (truncate if too large)
+	if len(jsonData) > 1000 {
+		h.logger.Debug("response json", zap.String("json", string(jsonData[:1000])+"... (truncated)"))
+	} else {
+		h.logger.Debug("response json", zap.String("json", string(jsonData)))
+	}
+
+	// Write response
+	if _, err := w.Write(jsonData); err != nil {
+		h.logger.Error("failed to write response", zap.Error(err))
 	}
 }
 
@@ -202,6 +215,8 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logger.Debug("real-debrid torrents", zap.Int("count", len(*torrents)))
+
 	// Get Servarr history to filter
 	servarrHistory, err := h.servarrClient.GetHistory(ctx, servarrHost, servarrAPIKey)
 	if err != nil {
@@ -210,8 +225,10 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logger.Debug("servarr history", zap.Int("count", len(servarrHistory)))
+
 	// Build hash map for quick lookup combining Servarr history + persistent history
-	// Note: We use torrent.ID because that's what we return as Hash in the API
+	// Note: Servarr records the actual torrent hash (infohash), not Real-Debrid's ID
 	historyHashes := make(map[string]bool)
 
 	// Add from Servarr history
@@ -220,6 +237,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		if record.DownloadID == "" {
 			continue
 		}
+		h.logger.Debug("history record", zap.String("downloadId", record.DownloadID))
 		historyHashes[strings.ToLower(record.DownloadID)] = true
 	}
 
@@ -228,7 +246,9 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		historyHashes[strings.ToLower(hash)] = true
 	}
 
-	// Filter and convert torrents
+	h.logger.Debug("combined history hashes", zap.Int("count", len(historyHashes)))
+
+	// Filter torrents to only those in Servarr history (like the old implementation)
 	torrentInfos := make([]TorrentInfo, 0) // Initialize to empty slice, not nil
 	for _, torrent := range *torrents {
 		// Skip torrents with empty ID (shouldn't happen but defensive check)
@@ -237,11 +257,23 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		h.logger.Debug("checking torrent",
+			zap.String("id", torrent.ID),
+			zap.String("hash", torrent.Hash),
+			zap.String("filename", torrent.Filename))
+
 		// Only include torrents that are in Servarr history
-		// Compare against torrent.ID since that's what we return as Hash
-		if !historyHashes[strings.ToLower(torrent.ID)] {
+		// Compare against torrent.Hash (actual infohash), not torrent.ID (Real-Debrid ID)
+		// This matches the old implementation behavior
+		inHistory := historyHashes[strings.ToLower(torrent.Hash)] || historyHashes[strings.ToLower(torrent.ID)]
+		if !inHistory {
+			h.logger.Debug("torrent not in history, skipping",
+				zap.String("id", torrent.ID),
+				zap.String("hash", torrent.Hash))
 			continue
 		}
+
+		h.logger.Debug("torrent in history, including", zap.String("id", torrent.ID))
 
 		// Map Real-Debrid status to qBittorrent state
 		state := debrid.MapStatus(torrent.Status)
@@ -256,10 +288,10 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		info := ConvertRealDebridToTorrentInfo(torrent, &h.config.QBittorrent, state)
 		torrentInfos = append(torrentInfos, info)
 
-		// Update persistent history
+		// Update persistent history with both hash and ID for future lookups
 		record := &history.Record{
-			Hash:         torrent.ID,
-			DownloadID:   torrent.ID,
+			Hash:         torrent.Hash, // Store the actual infohash
+			DownloadID:   torrent.ID,   // Store the Real-Debrid ID
 			RealDebridID: torrent.ID,
 			ServarrHost:  servarrHost,
 			Status:       state,
@@ -267,6 +299,8 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		}
 		h.historyStore.Add(record)
 	}
+
+	h.logger.Debug("torrents to return", zap.Int("count", len(torrentInfos)))
 
 	// Cache the result
 	h.cache.SetJSON(cacheKey, torrentInfos, 15*time.Minute)
