@@ -95,8 +95,7 @@ func (h *Handler) Preferences(w http.ResponseWriter, r *http.Request) {
 	h.logger.Debug("app/preferences")
 
 	prefs := Preferences{
-		SavePath: h.config.QBittorrent.SavePath,
-		Dht:      true, // Allow magnets without trackers
+		Dht: true, // Allow magnets without trackers
 	}
 
 	h.respondJSON(w, http.StatusOK, prefs)

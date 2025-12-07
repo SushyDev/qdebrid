@@ -119,8 +119,8 @@ type Category struct {
 
 // Preferences represents qBittorrent preferences
 type Preferences struct {
-	SavePath string `json:"save_path"`
-	Dht      bool   `json:"dht"` // Allow magnets without trackers
+	SavePath string `json:"save_path,omitempty"` // omitempty so it's not included if empty
+	Dht      bool   `json:"dht"`                 // Allow magnets without trackers
 }
 
 // ParseAuthHeader extracts Servarr host and API key from Basic Auth header
