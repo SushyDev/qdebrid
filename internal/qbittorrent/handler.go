@@ -121,8 +121,8 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	h.logger.Info("torrents/add")
 
-	// Parse form
-	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32 MB max
+	// Parse form based on Content-Type
+	if err := h.parseForm(r); err != nil {
 		h.respondError(w, http.StatusBadRequest, fmt.Sprintf("failed to parse form: %v", err))
 		return
 	}
@@ -349,6 +349,26 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	h.cache.Clear()
 
 	h.respondText(w, http.StatusOK, "Ok.")
+}
+
+// parseForm parses the request form based on Content-Type
+func (h *Handler) parseForm(r *http.Request) error {
+	contentType := r.Header.Get("Content-Type")
+
+	// Extract the base content type (before any parameters like boundary)
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = contentType[:idx]
+	}
+	contentType = strings.TrimSpace(contentType)
+
+	switch contentType {
+	case "multipart/form-data":
+		return r.ParseMultipartForm(32 << 20) // 32 MB max
+	case "application/x-www-form-urlencoded", "":
+		return r.ParseForm()
+	default:
+		return fmt.Errorf("unsupported Content-Type: %s", contentType)
+	}
 }
 
 // extractURLs extracts torrent URLs from the request
