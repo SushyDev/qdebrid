@@ -182,10 +182,11 @@ func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorr
 		name = rdTorrent.ID
 	}
 
-	// Ensure we have a valid hash (use actual hash or ID)
-	hash := rdTorrent.ID
+	// Return the actual infohash (torrent.Hash), not Real-Debrid ID
+	// This matches old implementation and is what Radarr expects
+	hash := rdTorrent.Hash
 	if hash == "" {
-		hash = rdTorrent.Hash
+		hash = rdTorrent.ID
 	}
 
 	info := TorrentInfo{
