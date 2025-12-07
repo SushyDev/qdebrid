@@ -14,7 +14,6 @@ import (
 	"qdebrid/internal/cache"
 	"qdebrid/internal/config"
 	"qdebrid/internal/debrid"
-	"qdebrid/internal/history"
 	"qdebrid/internal/logger"
 	"qdebrid/internal/qbittorrent"
 	"qdebrid/internal/servarr"
@@ -104,13 +103,6 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	cacheInstance := cache.New(5*time.Minute, log.Named("cache"))
 	defer cacheInstance.Close()
 
-	// Initialize history store
-	historyStore, err := history.NewStore(cfg.Data.Directory, log.Named("history"))
-	if err != nil {
-		return fmt.Errorf("failed to create history store: %w", err)
-	}
-	log.Info("history store initialized", zap.Int("records", historyStore.Count()))
-
 	// Initialize Real-Debrid client
 	debridClient := debrid.NewClient(&cfg.RealDebrid, log.Named("debrid"))
 	defer debridClient.Shutdown()
@@ -122,7 +114,6 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	handler := qbittorrent.NewHandler(
 		debridClient,
 		servarrClient,
-		historyStore,
 		cacheInstance,
 		cfg,
 		log.Named("handler"),
@@ -135,50 +126,6 @@ func run(cfg *config.Config, log *zap.Logger) error {
 		cfg.Server.Port,
 		log.Named("server"),
 	)
-
-	// Start periodic history save and cleanup
-	autoSaveInterval, _ := time.ParseDuration(cfg.Data.AutoSaveInterval)
-	cleanupMaxAge, _ := time.ParseDuration(cfg.Data.CleanupMaxAge)
-	if autoSaveInterval == 0 {
-		autoSaveInterval = 5 * time.Minute
-	}
-	if cleanupMaxAge == 0 {
-		cleanupMaxAge = 168 * time.Hour // 7 days
-	}
-
-	stopHistory := make(chan struct{})
-	historyDone := make(chan struct{})
-	go func() {
-		defer close(historyDone)
-		saveTicker := time.NewTicker(autoSaveInterval)
-		cleanupTicker := time.NewTicker(1 * time.Hour) // Cleanup every hour
-		defer saveTicker.Stop()
-		defer cleanupTicker.Stop()
-
-		for {
-			select {
-			case <-stopHistory:
-				// Final save on shutdown
-				if err := historyStore.Save(); err != nil {
-					log.Error("failed to save history on shutdown", zap.Error(err))
-				} else {
-					log.Info("history saved on shutdown")
-				}
-				return
-			case <-saveTicker.C:
-				if err := historyStore.Save(); err != nil {
-					log.Error("failed to auto-save history", zap.Error(err))
-				} else {
-					log.Debug("history auto-saved")
-				}
-			case <-cleanupTicker.C:
-				removed := historyStore.Cleanup(cleanupMaxAge)
-				if removed > 0 {
-					log.Info("cleaned up old history entries", zap.Int("removed", removed))
-				}
-			}
-		}
-	}()
 
 	// Start server in goroutine
 	serverErrors := make(chan error, 1)
@@ -201,17 +148,6 @@ func run(cfg *config.Config, log *zap.Logger) error {
 		defer shutdownCancel()
 
 		log.Info("shutting down gracefully...")
-
-		// Stop history saver
-		close(stopHistory)
-
-		// Wait for history to finish with timeout
-		select {
-		case <-historyDone:
-			log.Info("history saver stopped")
-		case <-time.After(5 * time.Second):
-			log.Warn("history saver shutdown timeout")
-		}
 
 		// Shutdown HTTP server
 		if err := server.Shutdown(shutdownCtx); err != nil {

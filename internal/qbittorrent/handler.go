@@ -13,7 +13,6 @@ import (
 	"qdebrid/internal/cache"
 	"qdebrid/internal/config"
 	"qdebrid/internal/debrid"
-	"qdebrid/internal/history"
 	"qdebrid/internal/servarr"
 )
 
@@ -21,7 +20,6 @@ import (
 type Handler struct {
 	debridClient  *debrid.Client
 	servarrClient *servarr.Client
-	historyStore  *history.Store
 	cache         *cache.Cache
 	config        *config.Config
 	logger        *zap.Logger
@@ -31,7 +29,6 @@ type Handler struct {
 func NewHandler(
 	debridClient *debrid.Client,
 	servarrClient *servarr.Client,
-	historyStore *history.Store,
 	cache *cache.Cache,
 	cfg *config.Config,
 	logger *zap.Logger,
@@ -39,7 +36,6 @@ func NewHandler(
 	return &Handler{
 		debridClient:  debridClient,
 		servarrClient: servarrClient,
-		historyStore:  historyStore,
 		cache:         cache,
 		config:        cfg,
 		logger:        logger,
@@ -227,11 +223,11 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Debug("servarr history", zap.Int("count", len(servarrHistory)))
 
-	// Build hash map for quick lookup combining Servarr history + persistent history
+	// Build hash map for quick lookup from Servarr history
 	// Note: Servarr records the actual torrent hash (infohash), not Real-Debrid's ID
 	historyHashes := make(map[string]bool)
 
-	// Add from Servarr history
+	// Add from Servarr history (this is the source of truth)
 	for _, record := range servarrHistory {
 		// Skip records with empty downloadId
 		if record.DownloadID == "" {
@@ -241,12 +237,7 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		historyHashes[strings.ToLower(record.DownloadID)] = true
 	}
 
-	// Add from persistent history store
-	for _, hash := range h.historyStore.GetHashes() {
-		historyHashes[strings.ToLower(hash)] = true
-	}
-
-	h.logger.Debug("combined history hashes", zap.Int("count", len(historyHashes)))
+	h.logger.Debug("history hashes to match", zap.Int("count", len(historyHashes)))
 
 	// Filter torrents to only those in Servarr history (like the old implementation)
 	torrentInfos := make([]TorrentInfo, 0) // Initialize to empty slice, not nil
@@ -287,17 +278,6 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 
 		info := ConvertRealDebridToTorrentInfo(torrent, &h.config.QBittorrent, state)
 		torrentInfos = append(torrentInfos, info)
-
-		// Update persistent history with both hash and ID for future lookups
-		record := &history.Record{
-			Hash:         torrent.Hash, // Store the actual infohash
-			DownloadID:   torrent.ID,   // Store the Real-Debrid ID
-			RealDebridID: torrent.ID,
-			ServarrHost:  servarrHost,
-			Status:       state,
-			Title:        torrent.Filename,
-		}
-		h.historyStore.Add(record)
 	}
 
 	h.logger.Debug("torrents to return", zap.Int("count", len(torrentInfos)))
