@@ -317,14 +317,21 @@ func (c *Client) wrapHTTPError(err error, operation string) error {
 	return fmt.Errorf("%s: %w", operation, err)
 }
 
-// findTorrentIDByHash finds a torrent ID by its hash
+// findTorrentIDByHash finds a torrent ID by its hash or ID
+// Since we return torrent.ID as the Hash field to qBittorrent clients,
+// we need to check both the actual hash and the ID
 func findTorrentIDByHash(torrents *api.Torrents, hash string) string {
 	if torrents == nil {
 		return ""
 	}
 
 	for _, torrent := range *torrents {
+		// Check against actual hash (infohash)
 		if strings.EqualFold(torrent.Hash, hash) {
+			return torrent.ID
+		}
+		// Also check against Real-Debrid ID (what we return as Hash)
+		if strings.EqualFold(torrent.ID, hash) {
 			return torrent.ID
 		}
 	}
