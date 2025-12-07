@@ -96,6 +96,7 @@ func (h *Handler) Preferences(w http.ResponseWriter, r *http.Request) {
 
 	prefs := Preferences{
 		SavePath: h.config.QBittorrent.SavePath,
+		Dht:      true, // Allow magnets without trackers
 	}
 
 	h.respondJSON(w, http.StatusOK, prefs)
@@ -302,7 +303,7 @@ func (h *Handler) Files(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert files
-	files := ConvertRealDebridFiles(torrentInfo.Files)
+	files := ConvertRealDebridFiles(torrentInfo)
 
 	// Cache result
 	h.cache.SetJSON(cacheKey, files, 10*time.Minute)

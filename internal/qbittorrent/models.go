@@ -120,6 +120,7 @@ type Category struct {
 // Preferences represents qBittorrent preferences
 type Preferences struct {
 	SavePath string `json:"save_path"`
+	Dht      bool   `json:"dht"` // Allow magnets without trackers
 }
 
 // ParseAuthHeader extracts Servarr host and API key from Basic Auth header
@@ -171,7 +172,7 @@ func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorr
 	progress := rdTorrent.Progress / 100.0
 
 	info := TorrentInfo{
-		Hash:              rdTorrent.Hash,
+		Hash:              rdTorrent.ID, // Use ID as hash (dirty hack but necessary for Servarr)
 		Name:              rdTorrent.Filename,
 		MagnetURI:         fmt.Sprintf("magnet:?xt=urn:btih:%s", rdTorrent.Hash),
 		Size:              bytesTotal,
@@ -182,10 +183,10 @@ func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorr
 		Eta:               eta,
 		State:             state,
 		Category:          cfg.CategoryName,
-		SavePath:          cfg.SavePath,
+		SavePath:          contentPath, // Use full path with ID like old implementation
 		ContentPath:       contentPath,
 		Ratio:             1.0,
-		RatioLimit:        1.0,
+		RatioLimit:        -2, // -2 means use global limit
 		MaxRatio:          1.0,
 		DownloadSpeed:     int64(rdTorrent.Speed),
 		TotalSize:         bytesTotal,
@@ -282,18 +283,24 @@ func ConvertRealDebridToProperties(rdTorrent *api.Torrent, cfg *config.QBittorre
 }
 
 // ConvertRealDebridFiles converts Real-Debrid files to qBittorrent format
-func ConvertRealDebridFiles(rdFiles []api.TorrentFile) []TorrentFile {
-	files := make([]TorrentFile, len(rdFiles))
-	for i, rdFile := range rdFiles {
-		files[i] = TorrentFile{
+// Note: This function receives TorrentInfo.Files, not just the files array
+func ConvertRealDebridFiles(torrentInfo *api.TorrentInfo) []TorrentFile {
+	var files []TorrentFile
+	for i, rdFile := range torrentInfo.Files {
+		// Skip unselected files (matching old implementation)
+		if rdFile.Selected == 0 {
+			continue
+		}
+
+		files = append(files, TorrentFile{
 			Index:        i,
 			Name:         rdFile.Path,
 			Size:         int64(rdFile.Bytes),
-			Progress:     1.0, // Real-Debrid doesn't provide per-file progress
-			Priority:     1,
-			IsSeed:       rdFile.Selected == 1,
+			Progress:     torrentInfo.Progress / 100.0, // Use torrent's overall progress
+			Priority:     1,                            // Normal priority
+			IsSeed:       torrentInfo.Seeders > 0,      // Check if torrent has seeders
 			Availability: 1.0,
-		}
+		})
 	}
 	return files
 }
