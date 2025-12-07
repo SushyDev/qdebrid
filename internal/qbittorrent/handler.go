@@ -62,6 +62,7 @@ func (h *Handler) respondError(w http.ResponseWriter, status int, message string
 
 // respondText writes plain text response
 func (h *Handler) respondText(w http.ResponseWriter, status int, text string) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
 	w.Write([]byte(text))
 }
@@ -86,7 +87,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // Version handles /api/v2/app/webapiVersion
 func (h *Handler) Version(w http.ResponseWriter, r *http.Request) {
 	h.logger.Debug("app/webapiVersion")
-	h.respondText(w, http.StatusOK, "v2.9.3")
+	h.respondText(w, http.StatusOK, "2.9.3")
 }
 
 // Preferences handles /api/v2/app/preferences
