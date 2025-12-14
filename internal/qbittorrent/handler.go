@@ -194,14 +194,14 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 			needsUpdate := false
 			for i := range result {
 				if result[i].State == "missingFiles" {
-					// Extract torrent ID from the Hash field (which is the Real-Debrid ID)
-					torrentID := result[i].Hash
-					if ValidatePath(h.config.QBittorrent.SavePath, torrentID) {
+					// Extract torrent hash from the Hash field
+					torrentHash := result[i].Hash
+					if ValidatePath(h.config.QBittorrent.SavePath, torrentHash) {
 						// Path now exists! Update status to pausedUP
 						result[i].State = "pausedUP"
 						needsUpdate = true
 						h.logger.Debug("cache hole punch: path now exists",
-							zap.String("torrent_id", torrentID),
+							zap.String("torrent_hash", torrentHash),
 							zap.String("name", result[i].Name))
 					}
 				}
@@ -297,7 +297,12 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 
 		// Validate path if enabled
 		if h.config.QBittorrent.ValidatePaths && state == "pausedUP" {
-			if !ValidatePath(h.config.QBittorrent.SavePath, torrent.ID) {
+			// Use torrent hash for path validation, fallback to ID if hash is empty
+			hashOrID := torrent.Hash
+			if hashOrID == "" {
+				hashOrID = torrent.ID
+			}
+			if !ValidatePath(h.config.QBittorrent.SavePath, hashOrID) {
 				state = "missingFiles"
 			}
 		}

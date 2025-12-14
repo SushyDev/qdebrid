@@ -160,9 +160,14 @@ func ParseAuthHeader(r *http.Request) (host string, apiKey string, err error) {
 // ConvertRealDebridToTorrentInfo converts Real-Debrid torrent to qBittorrent format
 func ConvertRealDebridToTorrentInfo(rdTorrent *api.Torrent, cfg *config.QBittorrentConfig, state string) TorrentInfo {
 	// SavePath is the base directory where torrents are saved
-	// ContentPath is the full path including the torrent's subfolder (torrent ID)
+	// ContentPath is the full path including the torrent's subfolder (torrent hash)
 	savePath := cfg.SavePath
-	contentPath := filepath.Join(cfg.SavePath, rdTorrent.ID)
+	// Use torrent hash for content path, fallback to ID if hash is empty
+	hashOrID := rdTorrent.Hash
+	if hashOrID == "" {
+		hashOrID = rdTorrent.ID
+	}
+	contentPath := filepath.Join(cfg.SavePath, hashOrID)
 
 	bytesTotal := int64(rdTorrent.Bytes)
 	bytesDone := int64(float64(rdTorrent.Bytes) * (rdTorrent.Progress / 100))
