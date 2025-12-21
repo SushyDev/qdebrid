@@ -61,7 +61,6 @@ func (c *Client) AddTorrentByURL(ctx context.Context, url string) (string, error
 	c.logger.Info("adding torrent by URL", zap.String("url_type", getURLType(url)))
 
 	var torrentID string
-	var addErr error
 
 	err := c.queue.Submit(ctx, "add_torrent", func(ctx context.Context) error {
 		if strings.HasPrefix(url, "magnet") {
@@ -97,15 +96,25 @@ func (c *Client) AddTorrentByURL(ctx context.Context, url string) (string, error
 
 	// Select files after adding
 	if err := c.SelectFiles(ctx, torrentID); err != nil {
-		// Log but don't fail - file selection can be retried later
 		c.logger.Warn("file selection failed after adding torrent",
 			zap.String("torrent_id", torrentID),
 			zap.Error(err))
-		addErr = fmt.Errorf("torrent added but file selection failed: %w", err)
+
+		// Clean up the torrent since file selection failed
+		if delErr := c.DeleteTorrent(ctx, torrentID); delErr != nil {
+			c.logger.Error("failed to delete torrent after file selection failure",
+				zap.String("torrent_id", torrentID),
+				zap.Error(delErr))
+		} else {
+			c.logger.Info("cleaned up torrent after file selection failure",
+				zap.String("torrent_id", torrentID))
+		}
+
+		return "", fmt.Errorf("file selection failed: %w", err)
 	}
 
 	c.logger.Info("torrent added successfully", zap.String("torrent_id", torrentID))
-	return torrentID, addErr
+	return torrentID, nil
 }
 
 // AddTorrentByFile adds a torrent from a file
@@ -113,7 +122,6 @@ func (c *Client) AddTorrentByFile(ctx context.Context, file io.ReadCloser) (stri
 	c.logger.Info("adding torrent by file")
 
 	var torrentID string
-	var addErr error
 
 	err := c.queue.Submit(ctx, "add_torrent_file", func(ctx context.Context) error {
 		response, err := api.AddTorrent(c.client, file)
@@ -133,11 +141,22 @@ func (c *Client) AddTorrentByFile(ctx context.Context, file io.ReadCloser) (stri
 		c.logger.Warn("file selection failed after adding torrent",
 			zap.String("torrent_id", torrentID),
 			zap.Error(err))
-		addErr = fmt.Errorf("torrent added but file selection failed: %w", err)
+
+		// Clean up the torrent since file selection failed
+		if delErr := c.DeleteTorrent(ctx, torrentID); delErr != nil {
+			c.logger.Error("failed to delete torrent after file selection failure",
+				zap.String("torrent_id", torrentID),
+				zap.Error(delErr))
+		} else {
+			c.logger.Info("cleaned up torrent after file selection failure",
+				zap.String("torrent_id", torrentID))
+		}
+
+		return "", fmt.Errorf("file selection failed: %w", err)
 	}
 
 	c.logger.Info("torrent added successfully", zap.String("torrent_id", torrentID))
-	return torrentID, addErr
+	return torrentID, nil
 }
 
 // SelectFiles selects files for a torrent based on configuration
@@ -337,6 +356,22 @@ func findTorrentIDByHash(torrents *api.Torrents, hash string) string {
 	}
 
 	return ""
+}
+
+// UnrestrictLink unrestricts a link and returns download information
+func (c *Client) UnrestrictLink(ctx context.Context, link string) (*api.UnrestrictLinkResponse, error) {
+	var response *api.UnrestrictLinkResponse
+
+	err := c.queue.Submit(ctx, "unrestrict_link", func(ctx context.Context) error {
+		result, err := api.UnrestrictLink(c.client, link)
+		if err != nil {
+			return c.wrapHTTPError(err, "unrestrict_link")
+		}
+		response = result
+		return nil
+	})
+
+	return response, err
 }
 
 // getURLType returns a friendly name for the URL type

@@ -18,12 +18,13 @@ var (
 
 // Config represents the application configuration
 type Config struct {
-	Server      ServerConfig      `yaml:"server"`
-	RealDebrid  RealDebridConfig  `yaml:"real_debrid"`
-	QBittorrent QBittorrentConfig `yaml:"qbittorrent"`
-	Data        DataConfig        `yaml:"data"`
-	Logging     LoggingConfig     `yaml:"logging"`
-	Testing     TestingConfig     `yaml:"testing"`
+	Server          ServerConfig          `yaml:"server"`
+	RealDebrid      RealDebridConfig      `yaml:"real_debrid"`
+	QBittorrent     QBittorrentConfig     `yaml:"qbittorrent"`
+	MediaValidation MediaValidationConfig `yaml:"media_validation"`
+	Data            DataConfig            `yaml:"data"`
+	Logging         LoggingConfig         `yaml:"logging"`
+	Testing         TestingConfig         `yaml:"testing"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -39,6 +40,19 @@ type RealDebridConfig struct {
 	MaxRetries        int      `yaml:"max_retries"`
 	AllowedFileTypes  []string `yaml:"allowed_file_types"`
 	MinFileSizeBytes  int64    `yaml:"min_file_size_bytes"`
+}
+
+// MediaValidationConfig holds media validation configuration
+type MediaValidationConfig struct {
+	Enabled              bool     `yaml:"enabled"`
+	RequireDownloaded    bool     `yaml:"require_downloaded"`
+	StreamableExtensions []string `yaml:"streamable_extensions"`
+	RequireVideoStream   bool     `yaml:"require_video_stream"`
+	RequireAudioStream   bool     `yaml:"require_audio_stream"`
+	MinDurationSeconds   int      `yaml:"min_duration_seconds"`
+	FFProbeTimeout       int      `yaml:"ffprobe_timeout"`
+	RejectSampleFiles    bool     `yaml:"reject_sample_files"`
+	SampleMinRuntime     int      `yaml:"sample_min_runtime"`
 }
 
 // QBittorrentConfig holds qBittorrent emulation configuration
@@ -132,6 +146,17 @@ func (c *Config) SetDefaults() {
 
 	if c.RealDebrid.MinFileSizeBytes == 0 {
 		c.RealDebrid.MinFileSizeBytes = 500 * 1024 * 1024 // 500MB
+	}
+
+	// Media validation defaults
+	if len(c.MediaValidation.StreamableExtensions) == 0 {
+		c.MediaValidation.StreamableExtensions = []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"}
+	}
+	if c.MediaValidation.FFProbeTimeout == 0 {
+		c.MediaValidation.FFProbeTimeout = 30 // 30 seconds
+	}
+	if c.MediaValidation.SampleMinRuntime == 0 {
+		c.MediaValidation.SampleMinRuntime = 300 // 5 minutes
 	}
 
 	if c.QBittorrent.CategoryName == "" {
@@ -243,6 +268,24 @@ qbittorrent:
   category_name: "qdebrid"                           # Category name shown in *Arr apps
   save_path: "/mnt/debrid/media"                     # Path where media is saved (must exist)
   validate_paths: true                                # Verify files exist on disk
+
+media_validation:
+  enabled: false                                      # Enable media validation with ffprobe
+  require_downloaded: true                            # Only validate if torrent status is 'downloaded'
+  streamable_extensions:                              # File extensions to validate
+    - "mkv"
+    - "mp4"
+    - "avi"
+    - "m4v"
+    - "mov"
+    - "wmv"
+    - "webm"
+  require_video_stream: true                          # Reject if no video stream found
+  require_audio_stream: true                          # Reject if no audio stream found
+  min_duration_seconds: 0                             # Minimum video duration (0 = disabled)
+  ffprobe_timeout: 30                                 # FFprobe timeout in seconds
+  reject_sample_files: true                           # Reject sample files based on duration
+  sample_min_runtime: 300                             # Minimum runtime in seconds (5 minutes)
 
 data:
   directory: "./data"                                 # Directory for persistent data (history, state)

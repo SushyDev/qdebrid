@@ -121,6 +121,47 @@ qbittorrent:
   validate_paths: true            # Check if files exist
 ```
 
+### Media Validation Settings
+
+**New in v2.1**: Automatic media validation with ffprobe
+
+```yaml
+media_validation:
+  enabled: false                      # Enable media validation with ffprobe
+  require_downloaded: true            # Reject if torrent status is not 'downloaded'
+  streamable_extensions:              # File extensions to validate
+    - "mkv"
+    - "mp4"
+    - "avi"
+    - "m4v"
+    - "mov"
+    - "wmv"
+    - "webm"
+  require_video_stream: true          # Reject if no video stream found
+  require_audio_stream: true          # Reject if no audio stream found
+  min_duration_seconds: 0             # Minimum video duration (0 = disabled)
+  ffprobe_timeout: 30                 # FFprobe timeout in seconds
+  reject_sample_files: true           # Reject sample files based on duration
+  sample_min_runtime: 300             # Minimum runtime in seconds (5 minutes)
+```
+
+**How it works:**
+1. When a torrent is added, qDebrid validates media files using ffprobe
+2. Each streamable file is checked for video/audio streams, duration, and quality
+3. If validation fails, the torrent is automatically deleted and rejected
+4. Radarr/Sonarr receives the rejection and can try another release
+
+**Use cases:**
+- Automatically reject sample files that sneak into releases
+- Ensure media files have both video and audio streams
+- Reject corrupted or incomplete downloads
+- Filter out non-playable files before they reach your media library
+
+**Requirements:**
+- ffprobe must be installed (included in Docker image)
+- Torrent must reach 'downloaded' status first (if `require_downloaded: true`)
+- Internet connection to unrestrict Real-Debrid links for validation
+
 ### Logging Settings
 
 ```yaml

@@ -14,15 +14,17 @@ import (
 	"qdebrid/internal/config"
 	"qdebrid/internal/debrid"
 	"qdebrid/internal/servarr"
+	"qdebrid/internal/torrent"
 )
 
 // Handler handles qBittorrent API requests
 type Handler struct {
-	debridClient  *debrid.Client
-	servarrClient *servarr.Client
-	cache         *cache.Cache
-	config        *config.Config
-	logger        *zap.Logger
+	debridClient   *debrid.Client
+	servarrClient  *servarr.Client
+	torrentService *torrent.Service
+	cache          *cache.Cache
+	config         *config.Config
+	logger         *zap.Logger
 }
 
 // NewHandler creates a new qBittorrent API handler
@@ -33,12 +35,20 @@ func NewHandler(
 	cfg *config.Config,
 	logger *zap.Logger,
 ) *Handler {
+	// Create torrent service with validation
+	torrentService := torrent.NewService(
+		debridClient,
+		&cfg.MediaValidation,
+		logger.Named("torrent"),
+	)
+
 	return &Handler{
-		debridClient:  debridClient,
-		servarrClient: servarrClient,
-		cache:         cache,
-		config:        cfg,
-		logger:        logger,
+		debridClient:   debridClient,
+		servarrClient:  servarrClient,
+		torrentService: torrentService,
+		cache:          cache,
+		config:         cfg,
+		logger:         logger,
 	}
 }
 
@@ -152,18 +162,42 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 
 	// Add torrents from URLs
 	for _, url := range urls {
-		if _, err := h.debridClient.AddTorrentByURL(ctx, url); err != nil {
+		torrentID, err := h.debridClient.AddTorrentByURL(ctx, url)
+		if err != nil {
 			h.logger.Error("failed to add torrent by URL", zap.String("url", url), zap.Error(err))
 			h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to add torrent: %v", err))
+			return
+		}
+
+		// Validate media if enabled
+		if err := h.torrentService.AddAndValidate(ctx, torrentID); err != nil {
+			h.logger.Error("media validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
+			// Delete the torrent since it failed validation
+			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+				h.logger.Error("failed to delete invalid torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+			}
+			h.respondError(w, http.StatusBadRequest, fmt.Sprintf("media validation failed: %v", err))
 			return
 		}
 	}
 
 	// Add torrents from files
 	for _, file := range files {
-		if _, err := h.debridClient.AddTorrentByFile(ctx, file); err != nil {
+		torrentID, err := h.debridClient.AddTorrentByFile(ctx, file)
+		if err != nil {
 			h.logger.Error("failed to add torrent by file", zap.Error(err))
 			h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to add torrent: %v", err))
+			return
+		}
+
+		// Validate media if enabled
+		if err := h.torrentService.AddAndValidate(ctx, torrentID); err != nil {
+			h.logger.Error("media validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
+			// Delete the torrent since it failed validation
+			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+				h.logger.Error("failed to delete invalid torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+			}
+			h.respondError(w, http.StatusBadRequest, fmt.Sprintf("media validation failed: %v", err))
 			return
 		}
 	}
