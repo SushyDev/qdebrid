@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sushydev/real_debrid_go/api"
@@ -334,4 +335,45 @@ func ValidatePath(basePath, subPath string) bool {
 	fullPath := filepath.Join(basePath, subPath)
 	_, err := os.Stat(fullPath)
 	return err == nil
+}
+
+// ProcessingTorrents tracks torrents that are currently being processed
+type ProcessingTorrents struct {
+	mu     sync.RWMutex
+	hashes map[string]bool
+}
+
+// NewProcessingTorrents creates a new ProcessingTorrents instance
+func NewProcessingTorrents() *ProcessingTorrents {
+	return &ProcessingTorrents{
+		hashes: make(map[string]bool),
+	}
+}
+
+// Add adds a torrent hash to the processing set
+func (p *ProcessingTorrents) Add(hash string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.hashes[strings.ToLower(hash)] = true
+}
+
+// Remove removes a torrent hash from the processing set
+func (p *ProcessingTorrents) Remove(hash string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.hashes, strings.ToLower(hash))
+}
+
+// Contains checks if a torrent hash is in the processing set
+func (p *ProcessingTorrents) Contains(hash string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.hashes[strings.ToLower(hash)]
+}
+
+// Count returns the number of torrents being processed
+func (p *ProcessingTorrents) Count() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.hashes)
 }

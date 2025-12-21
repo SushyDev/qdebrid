@@ -3,6 +3,7 @@ package qbittorrent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -21,12 +22,13 @@ import (
 
 // Handler handles qBittorrent API requests
 type Handler struct {
-	debridClient   *debrid.Client
-	servarrClient  *servarr.Client
-	torrentService *torrent.Service
-	cache          *cache.Cache
-	config         *config.Config
-	logger         *zap.Logger
+	debridClient       *debrid.Client
+	servarrClient      *servarr.Client
+	torrentService     *torrent.Service
+	cache              *cache.Cache
+	config             *config.Config
+	logger             *zap.Logger
+	processingTorrents *ProcessingTorrents
 }
 
 // NewHandler creates a new qBittorrent API handler
@@ -45,12 +47,13 @@ func NewHandler(
 	)
 
 	return &Handler{
-		debridClient:   debridClient,
-		servarrClient:  servarrClient,
-		torrentService: torrentService,
-		cache:          cache,
-		config:         cfg,
-		logger:         logger,
+		debridClient:       debridClient,
+		servarrClient:      servarrClient,
+		torrentService:     torrentService,
+		cache:              cache,
+		config:             cfg,
+		logger:             logger,
+		processingTorrents: NewProcessingTorrents(),
 	}
 }
 
@@ -183,6 +186,23 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Track torrent as being processed (use hash for tracking)
+		torrentHash := torrentInfo.Hash
+		if torrentHash == "" {
+			torrentHash = torrentInfo.ID
+		}
+		h.processingTorrents.Add(torrentHash)
+		h.logger.Info("torrent processing started",
+			zap.String("torrent_hash", torrentHash),
+			zap.String("torrent_id", torrentID))
+
+		// Ensure we remove from processing set when done (success or failure)
+		defer func(hash string) {
+			h.processingTorrents.Remove(hash)
+			h.logger.Info("torrent processing completed",
+				zap.String("torrent_hash", hash))
+		}(torrentHash)
+
 		// Validate expected file count first if enabled (cheap - just counts files)
 		if h.config.MediaValidation.ValidateFileCount {
 			if err := h.validateExpectedFileCount(ctx, r, torrentInfo); err != nil {
@@ -230,6 +250,23 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Track torrent as being processed (use hash for tracking)
+		torrentHash := torrentInfo.Hash
+		if torrentHash == "" {
+			torrentHash = torrentInfo.ID
+		}
+		h.processingTorrents.Add(torrentHash)
+		h.logger.Info("torrent processing started",
+			zap.String("torrent_hash", torrentHash),
+			zap.String("torrent_id", torrentID))
+
+		// Ensure we remove from processing set when done (success or failure)
+		defer func(hash string) {
+			h.processingTorrents.Remove(hash)
+			h.logger.Info("torrent processing completed",
+				zap.String("torrent_hash", hash))
+		}(torrentHash)
+
 		// Validate expected file count first if enabled (cheap - just counts files)
 		if h.config.MediaValidation.ValidateFileCount {
 			if err := h.validateExpectedFileCount(ctx, r, torrentInfo); err != nil {
@@ -275,6 +312,19 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 	var result []TorrentInfo
 	if ok, _ := h.cache.GetJSON(cacheKey, &result); ok {
 		h.logger.Debug("returning cached torrents info")
+
+		// Filter out torrents that are currently being processed
+		filteredResult := make([]TorrentInfo, 0, len(result))
+		for _, info := range result {
+			if !h.processingTorrents.Contains(info.Hash) {
+				filteredResult = append(filteredResult, info)
+			} else {
+				h.logger.Debug("torrent is being processed, filtering from cached response",
+					zap.String("hash", info.Hash),
+					zap.String("name", info.Name))
+			}
+		}
+		result = filteredResult
 
 		// Cache hole punching: Re-validate paths for missingFiles entries
 		// This allows status to update quickly when files appear without full cache invalidation
@@ -379,6 +429,19 @@ func (h *Handler) Info(w http.ResponseWriter, r *http.Request) {
 		}
 
 		h.logger.Debug("torrent in history, including", zap.String("id", torrent.ID))
+
+		// Skip torrents that are currently being processed
+		// Use torrent hash for checking, fallback to ID if hash is empty
+		hashToCheck := torrent.Hash
+		if hashToCheck == "" {
+			hashToCheck = torrent.ID
+		}
+		if h.processingTorrents.Contains(hashToCheck) {
+			h.logger.Debug("torrent is being processed, skipping from activity list",
+				zap.String("id", torrent.ID),
+				zap.String("hash", torrent.Hash))
+			continue
+		}
 
 		// Map Real-Debrid status to qBittorrent state
 		state := debrid.MapStatus(torrent.Status)
@@ -510,6 +573,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.debridClient.DeleteTorrentByHash(ctx, hash); err != nil {
+			// If torrent is already deleted (not found), log as info and continue
+			if errors.Is(err, debrid.ErrTorrentNotFound) {
+				h.logger.Info("torrent already deleted or not found", zap.String("hash", hash))
+				continue
+			}
 			h.logger.Error("failed to delete torrent", zap.String("hash", hash), zap.Error(err))
 			h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete torrent: %v", err))
 			return

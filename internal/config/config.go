@@ -141,7 +141,9 @@ func (c *Config) SetDefaults() {
 		c.RealDebrid.MaxRetries = 10
 	}
 
-	if len(c.RealDebrid.AdditionalSelectableFiles) == 0 {
+	// Only set default additional selectable files if not explicitly configured
+	// nil means not set (apply defaults), empty slice means user wants no additional files
+	if c.RealDebrid.AdditionalSelectableFiles == nil {
 		c.RealDebrid.AdditionalSelectableFiles = []string{
 			"srt",  // SubRip subtitles
 			"sub",  // MicroDVD subtitles
@@ -159,7 +161,8 @@ func (c *Config) SetDefaults() {
 	}
 
 	// Media validation defaults
-	if len(c.MediaValidation.StreamableExtensions) == 0 {
+	// Only set default streamable extensions if not explicitly configured
+	if c.MediaValidation.StreamableExtensions == nil {
 		c.MediaValidation.StreamableExtensions = []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"}
 	}
 	if c.MediaValidation.MinFileSizeBytes == 0 {
@@ -284,6 +287,7 @@ real_debrid:
     - "jpeg"                             # Images
     - "png"                              # Images
     - "tbn"                              # Thumbnail images
+                                         # To select NO additional files, use: additional_selectable_files: []
 
 qbittorrent:
   category_name: "qdebrid"                           # Category name shown in *Arr apps

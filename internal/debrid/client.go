@@ -2,6 +2,7 @@ package debrid
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,9 @@ import (
 	"github.com/sushydev/real_debrid_go/api"
 	"go.uber.org/zap"
 )
+
+// ErrTorrentNotFound is returned when a torrent is not found
+var ErrTorrentNotFound = errors.New("torrent not found")
 
 // Client wraps the Real-Debrid client with rate limiting and retry logic
 type Client struct {
@@ -247,7 +251,7 @@ func (c *Client) GetTorrentInfoByHash(ctx context.Context, hash string) (*api.To
 
 	torrentID := findTorrentIDByHash(torrents, hash)
 	if torrentID == "" {
-		return nil, fmt.Errorf("torrent not found with hash: %s", hash)
+		return nil, fmt.Errorf("%w: %s", ErrTorrentNotFound, hash)
 	}
 
 	return c.GetTorrentInfo(ctx, torrentID)
@@ -274,7 +278,7 @@ func (c *Client) DeleteTorrentByHash(ctx context.Context, hash string) error {
 
 	torrentID := findTorrentIDByHash(torrents, hash)
 	if torrentID == "" {
-		return fmt.Errorf("torrent not found with hash: %s", hash)
+		return fmt.Errorf("%w: %s", ErrTorrentNotFound, hash)
 	}
 
 	return c.DeleteTorrent(ctx, torrentID)
