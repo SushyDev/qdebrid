@@ -88,11 +88,17 @@ func (v *Validator) ValidateURL(ctx context.Context, url string) (*ValidationRes
 	// Using -v quiet to suppress ffprobe's own output
 	// Using -print_format json for structured output
 	// Using -show_format and -show_streams to get all relevant info
+	// Add HTTP headers for proper URL access (Real-Debrid compatibility)
 	cmd := exec.CommandContext(timeoutCtx, "ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
+		"-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+		"-headers", "Accept: */*",
+		"-reconnect", "1",
+		"-reconnect_streamed", "1",
+		"-reconnect_delay_max", "5",
 		url,
 	)
 

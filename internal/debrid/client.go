@@ -71,7 +71,9 @@ func (c *Client) Shutdown() {
 
 // AddTorrentByURL adds a torrent from a URL (magnet or http)
 func (c *Client) AddTorrentByURL(ctx context.Context, url string) (string, error) {
-	c.logger.Info("adding torrent by URL", zap.String("url_type", getURLType(url)))
+	c.logger.Info("adding torrent by URL",
+		zap.String("url_type", getURLType(url)),
+		zap.String("url", url))
 
 	var torrentID string
 
