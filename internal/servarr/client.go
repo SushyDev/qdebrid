@@ -309,7 +309,7 @@ func (c *Client) GetHistoryByDownloadID(ctx context.Context, baseURL string, api
 type CommandResponse struct {
 	ID     int    `json:"id"`
 	Name   string `json:"name"`
-	Status string `json:"status"`
+	Status string `json:"status"` // Possible values: queued, started, completed, failed
 }
 
 // RefreshMonitoredDownloads triggers Sonarr/Radarr to refresh the download queue
@@ -361,10 +361,163 @@ func (c *Client) RefreshMonitoredDownloads(ctx context.Context, baseURL string, 
 		return fmt.Errorf("decode response: %w", err)
 	}
 
-	c.logger.Info("RefreshMonitoredDownloads command response",
+	c.logger.Info("RefreshMonitoredDownloads command triggered",
 		zap.Int("commandId", cmdResp.ID),
 		zap.String("name", cmdResp.Name),
 		zap.String("status", cmdResp.Status))
 
 	return nil
+}
+
+// GetCommandStatus retrieves the status of a command by ID
+func (c *Client) GetCommandStatus(ctx context.Context, baseURL string, apiKey string, commandID int) (*CommandResponse, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base URL: %w", err)
+	}
+
+	parsedURL.Path = fmt.Sprintf("%s/api/v3/command/%d", parsedURL.Path, commandID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", parsedURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("X-Api-Key", apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("unauthorized: check API key")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var cmdResp CommandResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cmdResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &cmdResp, nil
+}
+
+// RefreshMonitoredDownloadsAndWait triggers a refresh and waits for it to complete
+func (c *Client) RefreshMonitoredDownloadsAndWait(ctx context.Context, baseURL string, apiKey string, maxWaitSeconds int) error {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("invalid base URL: %w", err)
+	}
+
+	parsedURL.Path = parsedURL.Path + "/api/v3/command"
+
+	// Command payload
+	payload := map[string]string{
+		"name": "RefreshMonitoredDownloads",
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", parsedURL.String(), strings.NewReader(string(jsonData)))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("X-Api-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	c.logger.Debug("triggering RefreshMonitoredDownloads",
+		zap.String("url", parsedURL.Host))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("unauthorized: check API key")
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var cmdResp CommandResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cmdResp); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	c.logger.Info("RefreshMonitoredDownloads command triggered, waiting for completion",
+		zap.Int("commandId", cmdResp.ID),
+		zap.String("name", cmdResp.Name),
+		zap.String("initialStatus", cmdResp.Status),
+		zap.Int("maxWaitSeconds", maxWaitSeconds))
+
+	// Poll command status until completed or timeout
+	ticker := time.NewTicker(500 * time.Millisecond) // Poll every 500ms
+	defer ticker.Stop()
+
+	deadline := time.Now().Add(time.Duration(maxWaitSeconds) * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for command completion")
+
+		case <-ticker.C:
+			// Check if we've exceeded the deadline
+			if time.Now().After(deadline) {
+				c.logger.Warn("RefreshMonitoredDownloads command did not complete in time",
+					zap.Int("commandId", cmdResp.ID),
+					zap.Int("maxWaitSeconds", maxWaitSeconds))
+				return fmt.Errorf("command did not complete within %d seconds", maxWaitSeconds)
+			}
+
+			// Get current command status
+			status, err := c.GetCommandStatus(ctx, baseURL, apiKey, cmdResp.ID)
+			if err != nil {
+				c.logger.Warn("failed to get command status, will retry",
+					zap.Int("commandId", cmdResp.ID),
+					zap.Error(err))
+				continue
+			}
+
+			c.logger.Debug("RefreshMonitoredDownloads command status",
+				zap.Int("commandId", cmdResp.ID),
+				zap.String("status", status.Status))
+
+			// Check if command is completed
+			switch status.Status {
+			case "completed":
+				c.logger.Info("RefreshMonitoredDownloads command completed",
+					zap.Int("commandId", cmdResp.ID),
+					zap.Duration("elapsed", time.Since(time.Now().Add(-time.Duration(maxWaitSeconds)*time.Second))))
+				return nil
+
+			case "failed":
+				c.logger.Error("RefreshMonitoredDownloads command failed",
+					zap.Int("commandId", cmdResp.ID))
+				return fmt.Errorf("command failed")
+
+			case "queued", "started":
+				// Still in progress, continue polling
+				continue
+
+			default:
+				c.logger.Warn("RefreshMonitoredDownloads command unknown status",
+					zap.Int("commandId", cmdResp.ID),
+					zap.String("status", status.Status))
+				continue
+			}
+		}
+	}
 }
