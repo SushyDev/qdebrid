@@ -790,9 +790,9 @@ func (h *Handler) validateExpectedFileCount(ctx context.Context, r *http.Request
 	// This ensures the queue has fresh data before we query it
 	h.logger.Debug("triggering RefreshMonitoredDownloads before validation",
 		zap.String("downloadId", downloadID))
-	if err := h.servarrClient.RefreshMonitoredDownloads(ctx, servarrHost, servarrAPIKey); err != nil {
-		h.logger.Warn("failed to trigger RefreshMonitoredDownloads", zap.Error(err))
-		// Don't fail - continue with validation even if refresh fails
+	if err := h.servarrClient.RefreshMonitoredDownloadsAndWait(ctx, servarrHost, servarrAPIKey, 15); err != nil {
+		h.logger.Warn("failed to wait for RefreshMonitoredDownloads completion", zap.Error(err))
+		// Don't fail - continue with validation even if refresh times out
 	}
 
 	// Query *arr queue API - this is populated as soon as Servarr sends the torrent
@@ -906,16 +906,16 @@ func (h *Handler) processTorrentAsync(magnetURL, category string, servarrHost, s
 	h.logger.Info("triggering RefreshMonitoredDownloads",
 		zap.String("hash", hash),
 		zap.String("servarr_host", servarrHost))
-	if err := h.servarrClient.RefreshMonitoredDownloads(ctx, servarrHost, servarrAPIKey); err != nil {
-		h.logger.Warn("failed to trigger RefreshMonitoredDownloads", zap.Error(err))
-		// Don't fail - continue with validation even if refresh fails
+	if err := h.servarrClient.RefreshMonitoredDownloadsAndWait(ctx, servarrHost, servarrAPIKey, 15); err != nil {
+		h.logger.Warn("failed to wait for RefreshMonitoredDownloads completion", zap.Error(err))
+		// Don't fail - continue with validation even if refresh times out
 	} else {
-		h.logger.Info("RefreshMonitoredDownloads command sent successfully", zap.String("hash", hash))
+		h.logger.Info("RefreshMonitoredDownloads completed successfully", zap.String("hash", hash))
 	}
 
-	// Wait for Sonarr to process the refresh and update the queue
-	h.logger.Info("waiting for queue to refresh", zap.String("hash", hash))
-	time.Sleep(3 * time.Second)
+	// Wait a brief moment for the queue to be fully updated
+	h.logger.Info("waiting for queue to be fully updated", zap.String("hash", hash))
+	time.Sleep(2 * time.Second)
 
 	// Validate file count if enabled
 	if h.config.MediaValidation.ValidateFileCount {
@@ -953,8 +953,8 @@ func (h *Handler) processTorrentAsync(magnetURL, category string, servarrHost, s
 
 	// Trigger RefreshMonitoredDownloads after successful validation
 	h.logger.Info("triggering RefreshMonitoredDownloads after successful validation", zap.String("hash", hash))
-	if err := h.servarrClient.RefreshMonitoredDownloads(ctx, servarrHost, servarrAPIKey); err != nil {
-		h.logger.Warn("failed to trigger RefreshMonitoredDownloads after validation", zap.Error(err))
+	if err := h.servarrClient.RefreshMonitoredDownloadsAndWait(ctx, servarrHost, servarrAPIKey, 15); err != nil {
+		h.logger.Warn("failed to wait for RefreshMonitoredDownloads completion after validation", zap.Error(err))
 	}
 
 	// Clear cache so Info() picks up the new torrent from Real-Debrid
