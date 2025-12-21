@@ -19,28 +19,18 @@ RUN go mod download
 COPY . ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -extldflags '-static'" -o /out/main ./cmd/qdebrid
 
-# --- Build dependencies
-FROM nixos/nix:latest AS dependencies
-
-RUN mkdir -p /root/.config/nix && \
-    echo "experimental-features = nix-command flakes" > /root/.config/nix/nix.conf
-
-WORKDIR /src
-
-COPY nix ./
-
-RUN nix build ./ --out-link /out
-
 # --- Construct final image
-FROM scratch
+FROM alpine:3.21
+
+# Install ffmpeg (which includes ffprobe)
+RUN apk add --no-cache ffmpeg ca-certificates
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
-ENV PATH=/bin
+ENV PATH=/bin:/usr/bin
 
 WORKDIR /app
 
 COPY --from=app /out/main /bin/main
-COPY --from=dependencies /out/etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 ENTRYPOINT ["/bin/main"]

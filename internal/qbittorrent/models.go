@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sushydev/real_debrid_go/api"
@@ -334,4 +335,126 @@ func ValidatePath(basePath, subPath string) bool {
 	fullPath := filepath.Join(basePath, subPath)
 	_, err := os.Stat(fullPath)
 	return err == nil
+}
+
+// ProcessingTorrent represents a torrent that is being validated
+type ProcessingTorrent struct {
+	Hash          string
+	TorrentID     string
+	MagnetURL     string
+	Category      string
+	AddedAt       time.Time
+	Status        string // "checkingUP" (checking/validating), "error" (failed validation), "downloading", "uploading" (seeding)
+	ServarrHost   string
+	ServarrAPIKey string
+	TorrentInfo   *api.TorrentInfo // Store the torrent info for /torrents/info API
+
+	// Failure tracking
+	Failed       bool      // True if validation failed
+	FailedAt     time.Time // When validation failed
+	ErrorMessage string    // Human-readable error message for failed validation
+}
+
+// ProcessingTorrents manages torrents that are being validated or processed
+type ProcessingTorrents struct {
+	mu       sync.RWMutex
+	torrents map[string]*ProcessingTorrent // key is hash (lowercase)
+}
+
+// NewProcessingTorrents creates a new ProcessingTorrents instance
+func NewProcessingTorrents() *ProcessingTorrents {
+	return &ProcessingTorrents{
+		torrents: make(map[string]*ProcessingTorrent),
+	}
+}
+
+// Add adds a processing torrent
+func (p *ProcessingTorrents) Add(hash string, torrent *ProcessingTorrent) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.torrents[strings.ToLower(hash)] = torrent
+}
+
+// Get retrieves a processing torrent by hash
+func (p *ProcessingTorrents) Get(hash string) (*ProcessingTorrent, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	torrent, exists := p.torrents[strings.ToLower(hash)]
+	return torrent, exists
+}
+
+// UpdateStatus updates the status of a processing torrent
+func (p *ProcessingTorrents) UpdateStatus(hash string, status string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if torrent, exists := p.torrents[strings.ToLower(hash)]; exists {
+		torrent.Status = status
+	}
+}
+
+// MarkFailed marks a processing torrent as failed with an error message
+func (p *ProcessingTorrents) MarkFailed(hash string, errorMessage string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if torrent, exists := p.torrents[strings.ToLower(hash)]; exists {
+		torrent.Failed = true
+		torrent.FailedAt = time.Now()
+		torrent.ErrorMessage = errorMessage
+		torrent.Status = "error"
+	}
+}
+
+// UpdateTorrentInfo updates the torrent info
+func (p *ProcessingTorrents) UpdateTorrentInfo(hash string, info *api.TorrentInfo) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if torrent, exists := p.torrents[strings.ToLower(hash)]; exists {
+		torrent.TorrentInfo = info
+	}
+}
+
+// Remove removes a processing torrent
+func (p *ProcessingTorrents) Remove(hash string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.torrents, strings.ToLower(hash))
+}
+
+// GetAll returns all processing torrents
+func (p *ProcessingTorrents) GetAll() []*ProcessingTorrent {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]*ProcessingTorrent, 0, len(p.torrents))
+	for _, torrent := range p.torrents {
+		result = append(result, torrent)
+	}
+	return result
+}
+
+// Count returns the number of processing torrents
+func (p *ProcessingTorrents) Count() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.torrents)
+}
+
+// Contains checks if a torrent hash exists
+func (p *ProcessingTorrents) Contains(hash string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	_, exists := p.torrents[strings.ToLower(hash)]
+	return exists
+}
+
+// GetFailedTorrents returns all failed torrents
+func (p *ProcessingTorrents) GetFailedTorrents() []*ProcessingTorrent {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]*ProcessingTorrent, 0)
+	for _, torrent := range p.torrents {
+		if torrent.Failed {
+			result = append(result, torrent)
+		}
+	}
+	return result
 }

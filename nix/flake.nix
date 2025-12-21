@@ -47,6 +47,7 @@
 							pkgs.go
 							pkgs.gnumake
 							pkgs.jq
+							pkgs.ffmpeg-full
 						];
 					};
 				}

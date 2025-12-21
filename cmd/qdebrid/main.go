@@ -104,7 +104,7 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	defer cacheInstance.Close()
 
 	// Initialize Real-Debrid client
-	debridClient := debrid.NewClient(&cfg.RealDebrid, log.Named("debrid"))
+	debridClient := debrid.NewClient(&cfg.RealDebrid, &cfg.MediaValidation, log.Named("debrid"))
 	defer debridClient.Shutdown()
 
 	// Initialize Servarr client
