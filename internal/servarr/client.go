@@ -184,7 +184,6 @@ func (c *Client) GetQueueByDownloadID(ctx context.Context, baseURL string, apiKe
 	// Filter records by downloadId (case-insensitive comparison)
 	// The server-side filter might not work properly depending on case
 	var filteredRecords []QueueRecord
-	downloadIDUpper := strings.ToUpper(downloadID)
 
 	// Log all queue record downloadIds for debugging
 	if len(queueResp.Records) > 0 {
@@ -200,7 +199,7 @@ func (c *Client) GetQueueByDownloadID(ctx context.Context, baseURL string, apiKe
 	}
 
 	for _, record := range queueResp.Records {
-		if strings.EqualFold(record.DownloadID, downloadIDUpper) {
+		if strings.EqualFold(record.DownloadID, downloadID) {
 			filteredRecords = append(filteredRecords, record)
 		}
 	}

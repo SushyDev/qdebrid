@@ -20,7 +20,7 @@ COPY . ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -extldflags '-static'" -o /out/main ./cmd/qdebrid
 
 # --- Construct final image
-FROM alpine:latest
+FROM alpine:3.21
 
 # Install ffmpeg (which includes ffprobe)
 RUN apk add --no-cache ffmpeg ca-certificates

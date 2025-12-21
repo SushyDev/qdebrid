@@ -413,7 +413,7 @@ services:
       - media-stack
 
   sonarr:
-    image: linuxserver/sonarr
+    image: linuxserver/sonarr:4.0.11
     container_name: sonarr
     ports:
       - "8989:8989"

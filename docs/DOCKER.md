@@ -109,12 +109,12 @@ services:
       - media-stack
 
   sonarr:
-    image: linuxserver/sonarr
+    image: linuxserver/sonarr:4.0.11
     networks:
       - media-stack
 
   radarr:
-    image: linuxserver/radarr
+    image: linuxserver/radarr:5.14.0
     networks:
       - media-stack
 
@@ -497,7 +497,7 @@ services:
         max-file: "3"
 
   sonarr:
-    image: linuxserver/sonarr:latest
+    image: linuxserver/sonarr:4.0.11
     container_name: sonarr
     restart: unless-stopped
     ports:
@@ -513,7 +513,7 @@ services:
       - media-stack
 
   radarr:
-    image: linuxserver/radarr:latest
+    image: linuxserver/radarr:5.14.0
     container_name: radarr
     restart: unless-stopped
     ports:

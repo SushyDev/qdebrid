@@ -40,7 +40,6 @@ type ValidationResult struct {
 	Width           int
 	Height          int
 	BitRate         int64
-	FFProbeOutput   string
 }
 
 // FFProbeStream represents a stream from ffprobe output
@@ -127,7 +126,7 @@ func (v *Validator) ValidateURL(ctx context.Context, url string) (*ValidationRes
 	}
 
 	// Analyze the results
-	result := v.analyzeProbeData(&probeData, string(output))
+	result := v.analyzeProbeData(&probeData)
 
 	// Fail-fast: Apply validation rules and reject immediately on failure
 	if v.config.RequireVideoStream && !result.HasVideo {
@@ -179,22 +178,28 @@ func (v *Validator) ValidateURL(ctx context.Context, url string) (*ValidationRes
 }
 
 // analyzeProbeData analyzes ffprobe output and extracts relevant information
-func (v *Validator) analyzeProbeData(data *FFProbeOutput, rawOutput string) *ValidationResult {
-	result := &ValidationResult{
-		FFProbeOutput: rawOutput,
-	}
+func (v *Validator) analyzeProbeData(data *FFProbeOutput) *ValidationResult {
+	result := &ValidationResult{}
 
 	// Extract format information
 	result.ContainerFormat = data.Format.FormatName
 
 	// Parse duration from format (most reliable source)
 	if data.Format.Duration != "" {
-		fmt.Sscanf(data.Format.Duration, "%f", &result.DurationSeconds)
+		if n, err := fmt.Sscanf(data.Format.Duration, "%f", &result.DurationSeconds); n != 1 || err != nil {
+			v.logger.Warn("failed to parse format duration",
+				zap.String("duration", data.Format.Duration),
+				zap.Error(err))
+		}
 	}
 
 	// Parse bit rate
 	if data.Format.BitRate != "" {
-		fmt.Sscanf(data.Format.BitRate, "%d", &result.BitRate)
+		if n, err := fmt.Sscanf(data.Format.BitRate, "%d", &result.BitRate); n != 1 || err != nil {
+			v.logger.Warn("failed to parse bit rate",
+				zap.String("bitrate", data.Format.BitRate),
+				zap.Error(err))
+		}
 	}
 
 	// Analyze streams
@@ -220,7 +225,11 @@ func (v *Validator) analyzeProbeData(data *FFProbeOutput, rawOutput string) *Val
 
 				// Use stream duration if format duration is not available
 				if result.DurationSeconds == 0 && stream.Duration != "" {
-					fmt.Sscanf(stream.Duration, "%f", &result.DurationSeconds)
+					if n, err := fmt.Sscanf(stream.Duration, "%f", &result.DurationSeconds); n != 1 || err != nil {
+						v.logger.Warn("failed to parse video stream duration",
+							zap.String("duration", stream.Duration),
+							zap.Error(err))
+					}
 				}
 			}
 
@@ -232,7 +241,11 @@ func (v *Validator) analyzeProbeData(data *FFProbeOutput, rawOutput string) *Val
 
 				// Use audio stream duration if we still don't have one
 				if result.DurationSeconds == 0 && stream.Duration != "" {
-					fmt.Sscanf(stream.Duration, "%f", &result.DurationSeconds)
+					if n, err := fmt.Sscanf(stream.Duration, "%f", &result.DurationSeconds); n != 1 || err != nil {
+						v.logger.Warn("failed to parse audio stream duration",
+							zap.String("duration", stream.Duration),
+							zap.Error(err))
+					}
 				}
 			}
 		}
