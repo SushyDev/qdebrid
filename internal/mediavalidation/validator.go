@@ -81,7 +81,7 @@ func (v *Validator) ValidateURL(ctx context.Context, url string) (*ValidationRes
 	v.logger.Debug("validating media URL", zap.String("url", url))
 
 	// Create timeout context for ffprobe
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(v.config.FFProbeTimeout)*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(*v.config.FFProbeTimeout)*time.Second)
 	defer cancel()
 
 	// Run ffprobe with JSON output
@@ -148,13 +148,13 @@ func (v *Validator) ValidateURL(ctx context.Context, url string) (*ValidationRes
 		return result, nil
 	}
 
-	if v.config.RejectSampleFiles && result.DurationSeconds > 0 && result.DurationSeconds < float64(v.config.SampleMinRuntime) {
+	if v.config.RejectSampleFiles && result.DurationSeconds > 0 && result.DurationSeconds < float64(*v.config.SampleMinRuntime) {
 		result.Valid = false
-		result.Reason = fmt.Sprintf("file appears to be a sample: %.1fs < %ds", result.DurationSeconds, v.config.SampleMinRuntime)
+		result.Reason = fmt.Sprintf("file appears to be a sample: %.1fs < %ds", result.DurationSeconds, *v.config.SampleMinRuntime)
 		v.logger.Warn("validation failed: sample file detected",
 			zap.String("url", url),
 			zap.Float64("duration", result.DurationSeconds),
-			zap.Int("sample_min_runtime", v.config.SampleMinRuntime))
+			zap.Int("sample_min_runtime", *v.config.SampleMinRuntime))
 		return result, nil
 	}
 

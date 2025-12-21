@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -123,7 +124,8 @@ func (c *Client) GetQueueByDownloadID(ctx context.Context, baseURL string, apiKe
 
 	parsedURL.Path = parsedURL.Path + "/api/v3/queue"
 	query := parsedURL.Query()
-	query.Add("downloadId", downloadID)
+	// Servarrs store downloadId in uppercase, so convert it
+	query.Add("downloadId", strings.ToUpper(downloadID))
 	query.Add("includeEpisode", "true") // For Sonarr - includes episode details
 	query.Add("includeMovie", "true")   // For Radarr - includes movie details
 	parsedURL.RawQuery = query.Encode()
@@ -163,9 +165,20 @@ func (c *Client) GetQueueByDownloadID(ctx context.Context, baseURL string, apiKe
 		queueResp.Records = make([]QueueRecord, 0)
 	}
 
+	// Filter records by downloadId (case-insensitive comparison)
+	// The server-side filter might not work properly depending on case
+	var filteredRecords []QueueRecord
+	downloadIDUpper := strings.ToUpper(downloadID)
+	for _, record := range queueResp.Records {
+		if strings.EqualFold(record.DownloadID, downloadIDUpper) {
+			filteredRecords = append(filteredRecords, record)
+		}
+	}
+
 	c.logger.Debug("fetched servarr queue",
-		zap.Int("records", len(queueResp.Records)),
+		zap.Int("total_records", len(queueResp.Records)),
+		zap.Int("filtered_records", len(filteredRecords)),
 		zap.String("downloadId", downloadID))
 
-	return queueResp.Records, nil
+	return filteredRecords, nil
 }

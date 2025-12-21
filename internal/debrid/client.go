@@ -190,11 +190,11 @@ func (c *Client) SelectFiles(ctx context.Context, torrentID string) error {
 				zap.String("torrent_id", torrentID),
 				zap.Strings("streamable_extensions", c.mediaValidation.StreamableExtensions),
 				zap.Strings("additional_selectable_files", c.config.AdditionalSelectableFiles),
-				zap.Int64("min_file_size_bytes", c.mediaValidation.MinFileSizeBytes),
+				zap.Int64("min_file_size_bytes", *c.mediaValidation.MinFileSizeBytes),
 				zap.Int("total_files_in_torrent", len(info.Files)))
 
 			return fmt.Errorf("no files match criteria (streamable extensions: %v, additional files: %v, min size: %d bytes, total files: %d)",
-				c.mediaValidation.StreamableExtensions, c.config.AdditionalSelectableFiles, c.mediaValidation.MinFileSizeBytes, len(info.Files))
+				c.mediaValidation.StreamableExtensions, c.config.AdditionalSelectableFiles, *c.mediaValidation.MinFileSizeBytes, len(info.Files))
 		}
 
 		c.logger.Debug("selecting files",
@@ -286,6 +286,13 @@ func (c *Client) DeleteTorrentByHash(ctx context.Context, hash string) error {
 
 // filterFiles filters files based on configuration
 func (c *Client) filterFiles(files []api.TorrentFile) []string {
+	// Check if select_all is enabled - overrides all other filters
+	if c.config.SelectAll {
+		c.logger.Debug("select_all enabled, selecting all files",
+			zap.Int("total_files", len(files)))
+		return []string{"all"}
+	}
+
 	if len(c.mediaValidation.StreamableExtensions) == 0 && len(c.config.AdditionalSelectableFiles) == 0 {
 		// No filter, select all files
 		c.logger.Debug("no file filters configured, selecting all files",
@@ -301,7 +308,7 @@ func (c *Client) filterFiles(files []api.TorrentFile) []string {
 		shouldSelect := false
 
 		// Check if it's a streamable video file (with size requirement)
-		if int64(file.Bytes) >= c.mediaValidation.MinFileSizeBytes {
+		if int64(file.Bytes) >= *c.mediaValidation.MinFileSizeBytes {
 			for _, ext := range c.mediaValidation.StreamableExtensions {
 				if strings.HasSuffix(strings.ToLower(file.Path), "."+strings.ToLower(ext)) {
 					shouldSelect = true
@@ -320,7 +327,7 @@ func (c *Client) filterFiles(files []api.TorrentFile) []string {
 					c.logger.Debug("skipped video file (too small)",
 						zap.String("file", file.Path),
 						zap.Int64("size", int64(file.Bytes)),
-						zap.Int64("min_size", c.mediaValidation.MinFileSizeBytes))
+						zap.Int64("min_size", *c.mediaValidation.MinFileSizeBytes))
 					break
 				}
 			}

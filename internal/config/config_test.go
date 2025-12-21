@@ -7,6 +7,10 @@ import (
 )
 
 func TestSetDefaults(t *testing.T) {
+	// Helper functions to create pointers for test values
+	int64Ptr := func(v int64) *int64 { return &v }
+	intPtr := func(v int) *int { return &v }
+
 	tests := []struct {
 		name   string
 		config Config
@@ -25,9 +29,9 @@ func TestSetDefaults(t *testing.T) {
 				},
 				MediaValidation: MediaValidationConfig{
 					StreamableExtensions: []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"},
-					MinFileSizeBytes:     500 * 1024 * 1024,
-					FFProbeTimeout:       30,
-					SampleMinRuntime:     300,
+					MinFileSizeBytes:     int64Ptr(500 * 1024 * 1024),
+					FFProbeTimeout:       intPtr(30),
+					SampleMinRuntime:     intPtr(300),
 				},
 				QBittorrent: QBittorrentConfig{
 					CategoryName: "qdebrid",
@@ -63,9 +67,9 @@ func TestSetDefaults(t *testing.T) {
 				},
 				MediaValidation: MediaValidationConfig{
 					StreamableExtensions: []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"},
-					MinFileSizeBytes:     500 * 1024 * 1024,
-					FFProbeTimeout:       30,
-					SampleMinRuntime:     300,
+					MinFileSizeBytes:     int64Ptr(500 * 1024 * 1024),
+					FFProbeTimeout:       intPtr(30),
+					SampleMinRuntime:     intPtr(300),
 				},
 				QBittorrent: QBittorrentConfig{
 					CategoryName: "qdebrid",
@@ -102,9 +106,9 @@ func TestSetDefaults(t *testing.T) {
 				t.Errorf("RealDebrid.MaxRetries = %v, want %v",
 					got.RealDebrid.MaxRetries, tt.want.RealDebrid.MaxRetries)
 			}
-			if got.MediaValidation.MinFileSizeBytes != tt.want.MediaValidation.MinFileSizeBytes {
+			if *got.MediaValidation.MinFileSizeBytes != *tt.want.MediaValidation.MinFileSizeBytes {
 				t.Errorf("MediaValidation.MinFileSizeBytes = %v, want %v",
-					got.MediaValidation.MinFileSizeBytes, tt.want.MediaValidation.MinFileSizeBytes)
+					*got.MediaValidation.MinFileSizeBytes, *tt.want.MediaValidation.MinFileSizeBytes)
 			}
 
 			// Check qbittorrent
@@ -427,4 +431,248 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestAdditionalSelectableFilesEmptyArray(t *testing.T) {
+	// Test that explicitly setting an empty array doesn't get defaults
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_empty_array.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+  additional_selectable_files: []
+qbittorrent:
+  save_path: "/tmp"
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should be empty, not nil and not default values
+	if config.RealDebrid.AdditionalSelectableFiles == nil {
+		t.Error("AdditionalSelectableFiles should not be nil when explicitly set to []")
+	}
+	if len(config.RealDebrid.AdditionalSelectableFiles) != 0 {
+		t.Errorf("AdditionalSelectableFiles should be empty, got %d items: %v",
+			len(config.RealDebrid.AdditionalSelectableFiles),
+			config.RealDebrid.AdditionalSelectableFiles)
+	}
+}
+
+func TestAdditionalSelectableFilesNotSet(t *testing.T) {
+	// Test that not setting the field gets defaults
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_not_set.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+qbittorrent:
+  save_path: "/tmp"
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should have default values
+	if config.RealDebrid.AdditionalSelectableFiles == nil {
+		t.Error("AdditionalSelectableFiles should not be nil after SetDefaults()")
+	}
+	if len(config.RealDebrid.AdditionalSelectableFiles) == 0 {
+		t.Error("AdditionalSelectableFiles should have default values when not set")
+	}
+	// Check for at least one default value
+	hasDefault := false
+	for _, ext := range config.RealDebrid.AdditionalSelectableFiles {
+		if ext == "srt" {
+			hasDefault = true
+			break
+		}
+	}
+	if !hasDefault {
+		t.Errorf("AdditionalSelectableFiles should contain default 'srt', got: %v",
+			config.RealDebrid.AdditionalSelectableFiles)
+	}
+}
+
+func TestStreamableExtensionsEmptyArray(t *testing.T) {
+	// Test that explicitly setting an empty array doesn't get defaults
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_empty_streamable.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+qbittorrent:
+  save_path: "/tmp"
+media_validation:
+  streamable_extensions: []
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should be empty, not nil and not default values
+	if config.MediaValidation.StreamableExtensions == nil {
+		t.Error("StreamableExtensions should not be nil when explicitly set to []")
+	}
+	if len(config.MediaValidation.StreamableExtensions) != 0 {
+		t.Errorf("StreamableExtensions should be empty, got %d items: %v",
+			len(config.MediaValidation.StreamableExtensions),
+			config.MediaValidation.StreamableExtensions)
+	}
+}
+
+func TestMinFileSizeBytesExplicitZero(t *testing.T) {
+	// Test that explicitly setting min_file_size_bytes to 0 disables the check
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_min_size_zero.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+qbittorrent:
+  save_path: "/tmp"
+media_validation:
+  min_file_size_bytes: 0
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should be explicitly set to 0, not nil and not default
+	if config.MediaValidation.MinFileSizeBytes == nil {
+		t.Error("MinFileSizeBytes should not be nil when explicitly set to 0")
+	}
+	if *config.MediaValidation.MinFileSizeBytes != 0 {
+		t.Errorf("MinFileSizeBytes should be 0, got %d", *config.MediaValidation.MinFileSizeBytes)
+	}
+}
+
+func TestSampleMinRuntimeExplicitZero(t *testing.T) {
+	// Test that explicitly setting sample_min_runtime to 0 disables the check
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_sample_runtime_zero.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+qbittorrent:
+  save_path: "/tmp"
+media_validation:
+  sample_min_runtime: 0
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should be explicitly set to 0, not nil and not default
+	if config.MediaValidation.SampleMinRuntime == nil {
+		t.Error("SampleMinRuntime should not be nil when explicitly set to 0")
+	}
+	if *config.MediaValidation.SampleMinRuntime != 0 {
+		t.Errorf("SampleMinRuntime should be 0, got %d", *config.MediaValidation.SampleMinRuntime)
+	}
+}
+
+func TestMediaValidationNotSet(t *testing.T) {
+	// Test that not setting media validation fields gets defaults
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test_not_set.yml")
+
+	content := `
+server:
+  port: 8080
+real_debrid:
+  token: "test_token"
+  requests_per_minute: 20
+qbittorrent:
+  save_path: "/tmp"
+logging:
+  level: "info"
+`
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	config, err := Load(filePath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should have default values
+	if config.MediaValidation.MinFileSizeBytes == nil {
+		t.Error("MinFileSizeBytes should not be nil after SetDefaults()")
+	} else if *config.MediaValidation.MinFileSizeBytes != 500*1024*1024 {
+		t.Errorf("MinFileSizeBytes should be default (500MB), got %d", *config.MediaValidation.MinFileSizeBytes)
+	}
+
+	if config.MediaValidation.FFProbeTimeout == nil {
+		t.Error("FFProbeTimeout should not be nil after SetDefaults()")
+	} else if *config.MediaValidation.FFProbeTimeout != 30 {
+		t.Errorf("FFProbeTimeout should be default (30), got %d", *config.MediaValidation.FFProbeTimeout)
+	}
+
+	if config.MediaValidation.SampleMinRuntime == nil {
+		t.Error("SampleMinRuntime should not be nil after SetDefaults()")
+	} else if *config.MediaValidation.SampleMinRuntime != 300 {
+		t.Errorf("SampleMinRuntime should be default (300), got %d", *config.MediaValidation.SampleMinRuntime)
+	}
 }

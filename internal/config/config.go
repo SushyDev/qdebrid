@@ -38,6 +38,7 @@ type RealDebridConfig struct {
 	Token                     string   `yaml:"token"`
 	RequestsPerMinute         int      `yaml:"requests_per_minute"`
 	MaxRetries                int      `yaml:"max_retries"`
+	SelectAll                 bool     `yaml:"select_all"`
 	AdditionalSelectableFiles []string `yaml:"additional_selectable_files"`
 }
 
@@ -46,13 +47,13 @@ type MediaValidationConfig struct {
 	Enabled              bool     `yaml:"enabled"`
 	RequireDownloaded    bool     `yaml:"require_downloaded"`
 	StreamableExtensions []string `yaml:"streamable_extensions"`
-	MinFileSizeBytes     int64    `yaml:"min_file_size_bytes"`
+	MinFileSizeBytes     *int64   `yaml:"min_file_size_bytes,omitempty"` // nil = use default, 0 = disabled
 	RequireVideoStream   bool     `yaml:"require_video_stream"`
 	RequireAudioStream   bool     `yaml:"require_audio_stream"`
 	MinDurationSeconds   int      `yaml:"min_duration_seconds"`
-	FFProbeTimeout       int      `yaml:"ffprobe_timeout"`
+	FFProbeTimeout       *int     `yaml:"ffprobe_timeout,omitempty"` // nil = use default
 	RejectSampleFiles    bool     `yaml:"reject_sample_files"`
-	SampleMinRuntime     int      `yaml:"sample_min_runtime"`
+	SampleMinRuntime     *int     `yaml:"sample_min_runtime,omitempty"` // nil = use default, 0 = disabled
 	ValidateFileCount    bool     `yaml:"validate_file_count"`
 }
 
@@ -165,14 +166,18 @@ func (c *Config) SetDefaults() {
 	if c.MediaValidation.StreamableExtensions == nil {
 		c.MediaValidation.StreamableExtensions = []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"}
 	}
-	if c.MediaValidation.MinFileSizeBytes == 0 {
-		c.MediaValidation.MinFileSizeBytes = 500 * 1024 * 1024 // 500MB
+	// Use pointer to distinguish nil (not set, use default) from 0 (explicitly disabled)
+	if c.MediaValidation.MinFileSizeBytes == nil {
+		defaultMinSize := int64(500 * 1024 * 1024) // 500MB
+		c.MediaValidation.MinFileSizeBytes = &defaultMinSize
 	}
-	if c.MediaValidation.FFProbeTimeout == 0 {
-		c.MediaValidation.FFProbeTimeout = 30 // 30 seconds
+	if c.MediaValidation.FFProbeTimeout == nil {
+		defaultTimeout := 30 // 30 seconds
+		c.MediaValidation.FFProbeTimeout = &defaultTimeout
 	}
-	if c.MediaValidation.SampleMinRuntime == 0 {
-		c.MediaValidation.SampleMinRuntime = 300 // 5 minutes
+	if c.MediaValidation.SampleMinRuntime == nil {
+		defaultRuntime := 300 // 5 minutes
+		c.MediaValidation.SampleMinRuntime = &defaultRuntime
 	}
 
 	if c.QBittorrent.CategoryName == "" {
@@ -274,6 +279,7 @@ real_debrid:
   token: "YOUR_REAL_DEBRID_TOKEN_HERE"  # Required: Your Real-Debrid API token
   requests_per_minute: 20                # Rate limit (Real-Debrid allows ~60/min, we use 20 to be safe)
   max_retries: 10                        # Maximum retry attempts for failed requests
+  select_all: false                      # Override file selection filters and select all files (default: false)
   additional_selectable_files:           # Additional file extensions to select (beyond video files)
     - "srt"                              # SubRip subtitles
     - "sub"                              # MicroDVD subtitles  
@@ -305,13 +311,16 @@ media_validation:
     - "mov"
     - "wmv"
     - "webm"
+                                                      # To customize, specify your own list or use [] for none
   min_file_size_bytes: 524288000                      # Minimum file size (500MB default) for selection
+                                                      # Set to 0 to disable size check (select all video files)
   require_video_stream: true                          # Reject if no video stream found
   require_audio_stream: true                          # Reject if no audio stream found
   min_duration_seconds: 0                             # Minimum video duration (0 = disabled)
   ffprobe_timeout: 30                                 # FFprobe timeout in seconds
   reject_sample_files: true                           # Reject sample files based on duration
   sample_min_runtime: 300                             # Minimum runtime in seconds (5 minutes)
+                                                      # Set to 0 to disable sample file rejection
   validate_file_count: false                          # Validate expected number of video files from *arr
 
 data:
