@@ -35,26 +35,31 @@ func NewValidator(
 }
 
 // ValidateTorrent validates media files in a torrent
-func (v *Validator) ValidateTorrent(ctx context.Context, torrentID string) error {
+// Returns the torrent info to avoid multiple API calls
+// If torrentInfo is provided (not nil), it will be used instead of fetching it again
+func (v *Validator) ValidateTorrent(ctx context.Context, torrentID string, torrentInfo *api.TorrentInfo) (*api.TorrentInfo, error) {
+	// Get torrent info if not provided
+	if torrentInfo == nil {
+		var err error
+		torrentInfo, err = v.debridClient.GetTorrentInfo(ctx, torrentID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get torrent info: %w", err)
+		}
+	}
+
 	// Skip if validation is disabled
 	if !v.config.Enabled {
-		return nil
+		return torrentInfo, nil
 	}
 
 	v.logger.Info("validating torrent media", zap.String("torrent_id", torrentID))
-
-	// Get torrent info
-	torrentInfo, err := v.debridClient.GetTorrentInfo(ctx, torrentID)
-	if err != nil {
-		return fmt.Errorf("failed to get torrent info: %w", err)
-	}
 
 	// Fail-fast: Check if torrent status is 'downloaded' (if required)
 	if v.config.RequireDownloaded && torrentInfo.Status != "downloaded" {
 		v.logger.Warn("rejecting torrent: status not downloaded",
 			zap.String("torrent_id", torrentID),
 			zap.String("status", torrentInfo.Status))
-		return fmt.Errorf("torrent status is '%s', not 'downloaded' - rejecting", torrentInfo.Status)
+		return nil, fmt.Errorf("torrent status is '%s', not 'downloaded' - rejecting", torrentInfo.Status)
 	}
 
 	// Filter files to only streamable extensions
@@ -62,7 +67,7 @@ func (v *Validator) ValidateTorrent(ctx context.Context, torrentID string) error
 
 	if len(streamableFiles) == 0 {
 		v.logger.Info("no streamable files found in torrent", zap.String("torrent_id", torrentID))
-		return nil // No streamable files, skip validation
+		return torrentInfo, nil // No streamable files, skip validation
 	}
 
 	v.logger.Info("found streamable files to validate",
@@ -70,7 +75,46 @@ func (v *Validator) ValidateTorrent(ctx context.Context, torrentID string) error
 		zap.Int("count", len(streamableFiles)))
 
 	// Validate files (fail-fast on first failure)
-	return v.validateFiles(ctx, torrentID, torrentInfo, streamableFiles)
+	if err := v.validateFiles(ctx, torrentID, torrentInfo, streamableFiles); err != nil {
+		return nil, err
+	}
+
+	return torrentInfo, nil
+}
+
+// CountValidVideoFiles counts the number of non-sample video files in a torrent
+// Accepts torrentInfo to avoid additional API calls
+func (v *Validator) CountValidVideoFiles(torrentInfo *api.TorrentInfo) int {
+	v.logger.Debug("counting valid video files", zap.String("torrent_id", torrentInfo.ID))
+
+	count := 0
+	for _, file := range torrentInfo.Files {
+		// Only count selected files
+		if file.Selected != 1 {
+			continue
+		}
+
+		// Only count streamable video files
+		if !v.mediaValidator.IsStreamableExtension(file.Path) {
+			continue
+		}
+
+		// Skip sample files
+		if v.config.RejectSampleFiles && v.mediaValidator.IsSampleFile(file.Path) {
+			v.logger.Debug("skipping sample file",
+				zap.String("torrent_id", torrentInfo.ID),
+				zap.String("file", file.Path))
+			continue
+		}
+
+		count++
+	}
+
+	v.logger.Debug("counted valid video files",
+		zap.String("torrent_id", torrentInfo.ID),
+		zap.Int("count", count))
+
+	return count
 }
 
 // filterStreamableFiles filters files to only those with streamable extensions

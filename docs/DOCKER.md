@@ -1,129 +1,103 @@
 # Docker Deployment Guide
 
-## Quick Start
+This guide covers advanced Docker deployment scenarios. For quick start instructions, see the main [README.md](../README.md#quick-start-with-docker).
 
-### Using Docker Run
+## Table of Contents
 
-```bash
-# Create config file
-cp config.docker.yml config.yml
-# Edit config.yml and add your Real-Debrid token
+- [Environment Variables](#environment-variables)
+- [Volumes and Persistence](#volumes-and-persistence)
+- [Networking](#networking)
+- [Building from Source](#building-from-source)
+- [Security Best Practices](#security-best-practices)
+- [Advanced Configuration](#advanced-configuration)
+- [Troubleshooting](#troubleshooting)
 
-# Run container
-docker run -d \
-  --name qdebrid \
-  -p 8080:8080 \
-  -v $(pwd)/config.yml:/config/config.yml:ro \
-  -v /path/to/media:/media \
-  --restart unless-stopped \
-  ghcr.io/yourusername/qdebrid:latest
-```
+## Environment Variables
 
-### Using Docker Compose
-
-```bash
-# Copy example config
-cp config.docker.yml config.yml
-
-# Edit config.yml with your settings
-
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-## Configuration
-
-### Config File
-
-Mount your `config.yml` to `/config/config.yml` in the container:
-
-```yaml
-server:
-  host: "0.0.0.0"  # Important: Must be 0.0.0.0 for Docker
-  port: 8080
-
-real_debrid:
-  token: "your-token-here"
-  requests_per_minute: 60
-  # ... other settings
-
-qbittorrent:
-  save_path: "/media"  # Path inside container
-  # ... other settings
-```
-
-### Environment Variables
-
-You can override config values using environment variables:
+Override any configuration value using environment variables with the `QDEBRID_` prefix:
 
 ```bash
 docker run -d \
   -e QDEBRID_SERVER_HOST=0.0.0.0 \
   -e QDEBRID_SERVER_PORT=8080 \
-  -e QDEBRID_REAL_DEBRID_TOKEN=your-token \
+  -e QDEBRID_REAL_DEBRID_TOKEN=your_token \
+  -e QDEBRID_REAL_DEBRID_REQUESTS_PER_MINUTE=20 \
   -e QDEBRID_LOGGING_LEVEL=info \
+  -e QDEBRID_LOGGING_JSON=true \
+  -e TZ=America/New_York \
   ghcr.io/yourusername/qdebrid:latest
 ```
 
-## Health Check
+### Environment Variable Format
 
-The container includes a health check endpoint at `/health`:
+Configuration hierarchy is flattened using underscores:
 
-```bash
-# Check health
-curl http://localhost:8080/health
-
-# Response
-{
-  "status": "ok",
-  "service": "qdebrid",
-  "version": "2.0.0"
-}
+```yaml
+# config.yml
+real_debrid:
+  token: "value"
+  
+# Environment variable
+QDEBRID_REAL_DEBRID_TOKEN=value
 ```
 
-Docker will automatically monitor this endpoint:
+## Volumes and Persistence
+
+### Required Volumes
+
+- `/config/config.yml` - Configuration file (mount as read-only for security)
 
 ```bash
-# Check container health
-docker inspect --format='{{.State.Health.Status}}' qdebrid
+-v $(pwd)/config.yml:/config/config.yml:ro
 ```
 
-## Volumes
+### Optional Volumes
 
-### Required
+- `/media` - Media directory for path validation (if `qbittorrent.validate_paths: true`)
 
-- `/config/config.yml` - Configuration file (read-only recommended)
+```bash
+-v /mnt/media:/media
+```
 
-### Optional
+### Volume Permissions
 
-- `/media` - Media directory for path validation
+The container runs as user `qdebrid` (UID/GID 1000 by default). Ensure volumes have appropriate permissions:
 
-Example with media volume:
+```bash
+# Check permissions
+ls -la config.yml
+
+# Fix permissions if needed
+chown 1000:1000 config.yml
+chmod 644 config.yml
+```
+
+To use a different UID/GID:
 
 ```bash
 docker run -d \
-  --name qdebrid \
-  -p 8080:8080 \
+  --user 1001:1001 \
   -v $(pwd)/config.yml:/config/config.yml:ro \
-  -v /mnt/media:/media \
   ghcr.io/yourusername/qdebrid:latest
 ```
 
 ## Networking
 
-### Ports
+### Port Mapping
 
-- `8080` - HTTP API (default, configurable)
+Default port is `8080`. Map to a different host port:
 
-### Network Mode
+```bash
+-p 9090:8080  # Host port 9090 → Container port 8080
+```
 
-For *Arr stack integration, use a shared network:
+### Shared Networks for *Arr Stack
+
+Create a dedicated network for your media stack:
+
+```bash
+docker network create media-stack
+```
 
 ```yaml
 version: '3.8'
@@ -132,144 +106,360 @@ services:
   qdebrid:
     image: ghcr.io/yourusername/qdebrid:latest
     networks:
-      - arr-stack
+      - media-stack
 
   sonarr:
     image: linuxserver/sonarr
     networks:
-      - arr-stack
+      - media-stack
+
+  radarr:
+    image: linuxserver/radarr
+    networks:
+      - media-stack
 
 networks:
-  arr-stack:
+  media-stack:
     external: true
 ```
+
+Use container names as hostnames: `http://qdebrid:8080`
+
+### Host Networking
+
+For direct host network access (not recommended for security):
+
+```bash
+docker run -d \
+  --network host \
+  -v $(pwd)/config.yml:/config/config.yml:ro \
+  ghcr.io/yourusername/qdebrid:latest
+```
+
+**Note**: With host networking, set `server.host: "0.0.0.0"` and `server.port` as desired in config.yml.
 
 ## Building from Source
 
 ### Local Build
 
 ```bash
-# Build image
+# Using Makefile
 make docker-build
 
-# Or manually
+# Manual build
 docker build -t qdebrid:latest .
+
+# Build with custom Dockerfile
+docker build -f Dockerfile.custom -t qdebrid:custom .
 ```
 
 ### Multi-Architecture Build
 
-```bash
-# Build for amd64 and arm64
-make docker-buildx
+Build for multiple platforms using Docker Buildx:
 
-# Or manually
+```bash
+# Setup buildx (one time)
+docker buildx create --name multiarch --use
+docker buildx inspect --bootstrap
+
+# Build for multiple architectures
 docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t qdebrid:latest \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  -t ghcr.io/yourusername/qdebrid:latest \
   --push .
 ```
 
-## Makefile Commands
+### Build Arguments
+
+Pass build-time variables:
 
 ```bash
-# Build Docker image
-make docker-build
-
-# Run Docker container
-make docker-run
-
-# Start with docker-compose
-make docker-compose-up
-
-# Stop docker-compose
-make docker-compose-down
-
-# View logs
-make docker-compose-logs
-
-# Push to registry
-make docker-push
-
-# Build multi-arch image
-make docker-buildx
+docker build \
+  --build-arg GO_VERSION=1.23.2 \
+  --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+  -t qdebrid:latest .
 ```
 
-## Security
+## Security Best Practices
 
-### Non-Root User
+### 1. Read-Only Root Filesystem
 
-The container runs as a non-root user (`qdebrid:qdebrid`, UID/GID 1000) for security.
-
-### Read-Only Config
-
-Mount config as read-only:
+Run with read-only root filesystem:
 
 ```bash
--v $(pwd)/config.yml:/config/config.yml:ro
+docker run -d \
+  --read-only \
+  --tmpfs /tmp \
+  -v $(pwd)/config.yml:/config/config.yml:ro \
+  ghcr.io/yourusername/qdebrid:latest
 ```
 
-### Secrets
+### 2. Drop Capabilities
 
-Do not include sensitive data in the image. Use:
-1. Volume-mounted config file
-2. Environment variables
-3. Docker secrets (Swarm mode)
+Remove unnecessary Linux capabilities:
+
+```bash
+docker run -d \
+  --cap-drop=ALL \
+  --cap-add=NET_BIND_SERVICE \
+  -v $(pwd)/config.yml:/config/config.yml:ro \
+  ghcr.io/yourusername/qdebrid:latest
+```
+
+### 3. Use Docker Secrets
+
+For Docker Swarm or Compose with secrets:
+
+```yaml
+version: '3.8'
+
+services:
+  qdebrid:
+    image: ghcr.io/yourusername/qdebrid:latest
+    secrets:
+      - rd_token
+    environment:
+      - QDEBRID_REAL_DEBRID_TOKEN_FILE=/run/secrets/rd_token
+
+secrets:
+  rd_token:
+    external: true
+```
+
+### 4. Non-Root User
+
+Container already runs as non-root user (UID 1000). To verify:
+
+```bash
+docker exec qdebrid id
+# Output: uid=1000(qdebrid) gid=1000(qdebrid)
+```
+
+### 5. Security Scanning
+
+Scan images for vulnerabilities:
+
+```bash
+# Using Docker Scout
+docker scout cve ghcr.io/yourusername/qdebrid:latest
+
+# Using Trivy
+trivy image ghcr.io/yourusername/qdebrid:latest
+```
+
+## Advanced Configuration
+
+### Resource Limits
+
+Limit CPU and memory usage:
+
+```yaml
+services:
+  qdebrid:
+    image: ghcr.io/yourusername/qdebrid:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+```
+
+Or with Docker run:
+
+```bash
+docker run -d \
+  --cpus="1.0" \
+  --memory="512m" \
+  --memory-reservation="128m" \
+  ghcr.io/yourusername/qdebrid:latest
+```
+
+### Custom Health Check
+
+Override default health check:
+
+```yaml
+services:
+  qdebrid:
+    image: ghcr.io/yourusername/qdebrid:latest
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+```
+
+Disable health check:
+
+```yaml
+healthcheck:
+  disable: true
+```
+
+### Restart Policies
+
+```yaml
+services:
+  qdebrid:
+    image: ghcr.io/yourusername/qdebrid:latest
+    restart: unless-stopped  # Restart unless manually stopped
+```
+
+Options:
+- `no` - Never restart
+- `always` - Always restart
+- `on-failure` - Restart on non-zero exit
+- `unless-stopped` - Restart unless manually stopped (recommended)
+
+### Logging Configuration
+
+Configure Docker logging driver:
+
+```yaml
+services:
+  qdebrid:
+    image: ghcr.io/yourusername/qdebrid:latest
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+Or use syslog:
+
+```yaml
+logging:
+  driver: "syslog"
+  options:
+    syslog-address: "tcp://192.168.1.100:514"
+```
 
 ## Troubleshooting
 
 ### Container Won't Start
 
-Check logs:
-
 ```bash
+# Check logs
 docker logs qdebrid
-```
 
-Common issues:
-- Missing or invalid `config.yml`
-- Wrong `server.host` (must be `0.0.0.0` for Docker)
-- Port already in use
+# Common issues:
+# 1. Missing config.yml
+ls -la $(pwd)/config.yml
+
+# 2. Wrong server.host (must be 0.0.0.0 for Docker)
+grep "host:" config.yml
+
+# 3. Port already in use
+ss -tlnp | grep 8080
+
+# 4. Permission denied
+docker run --rm -v $(pwd)/config.yml:/tmp/test.yml:ro alpine cat /tmp/test.yml
+```
 
 ### Health Check Failing
 
 ```bash
-# Check health endpoint manually
+# Test health endpoint manually
 docker exec qdebrid wget -q -O- http://localhost:8080/health
 
-# View container health status
+# Check container health status
 docker inspect --format='{{json .State.Health}}' qdebrid | jq
-```
 
-### Permission Issues
-
-Ensure volumes have correct permissions:
-
-```bash
-# If using a specific UID/GID
-docker run -d \
-  --user 1000:1000 \
-  -v $(pwd)/config.yml:/config/config.yml:ro \
-  qdebrid:latest
+# View health check logs
+docker inspect --format='{{range .State.Health.Log}}{{.Output}}{{end}}' qdebrid
 ```
 
 ### Cannot Connect to *Arr Apps
 
-1. Check network configuration
-2. Ensure containers are on the same network
-3. Use container name as hostname: `http://qdebrid:8080`
+```bash
+# 1. Check if containers are on same network
+docker network inspect media-stack
 
-## Integration with *Arr Stack
+# 2. Test connectivity from qDebrid to Sonarr
+docker exec qdebrid wget -q -O- http://sonarr:8989/api/v3/system/status?apikey=YOUR_API_KEY
 
-### Sonarr/Radarr Configuration
+# 3. Verify *arr credentials in qBittorrent download client config
+# Username should be: http://sonarr:8989
+# Password should be: your_sonarr_api_key
+```
 
-1. **Add Download Client**:
-   - Type: qBittorrent
-   - Host: `qdebrid` (container name) or `localhost` (if same host)
-   - Port: `8080`
-   - Username: `<servarr-url>`
-   - Password: `<servarr-api-key>`
+### Media Validation Fails
 
-2. **Docker Compose Example**:
+```bash
+# Check if ffprobe is available
+docker exec qdebrid which ffprobe
+docker exec qdebrid ffprobe -version
+
+# Test ffprobe with a file
+docker exec qdebrid ffprobe -v error -show_format -show_streams "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"
+
+# Increase timeout in config.yml
+# media_validation:
+#   ffprobe_timeout: 60
+```
+
+### High Memory Usage
+
+```bash
+# Check container stats
+docker stats qdebrid
+
+# If cache is too large, reduce TTL in config
+# Or restart container to clear cache
+docker restart qdebrid
+```
+
+### Rate Limiting Errors
+
+```bash
+# Check logs for 429 errors
+docker logs qdebrid | grep "429"
+
+# Reduce rate in config.yml:
+# real_debrid:
+#   requests_per_minute: 15
+```
+
+## Container Registry
+
+### GitHub Container Registry (GHCR)
+
+Pull from GHCR:
+
+```bash
+# Latest stable release
+docker pull ghcr.io/yourusername/qdebrid:latest
+
+# Specific version
+docker pull ghcr.io/yourusername/qdebrid:v2.0.0
+
+# Development/nightly builds
+docker pull ghcr.io/yourusername/qdebrid:development
+```
+
+### Authenticate with GHCR
+
+For private repositories:
+
+```bash
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+```
+
+### Image Tags
+
+- `latest` - Latest stable release (recommended for production)
+- `v2.0.0` - Specific version tag
+- `development` - Latest development build (unstable)
+- `sha-abc1234` - Specific commit SHA
+
+## Docker Compose Full Example
+
+Complete docker-compose.yml with all services:
 
 ```yaml
 version: '3.8'
@@ -284,11 +474,30 @@ services:
     volumes:
       - ./config.yml:/config/config.yml:ro
       - /mnt/media:/media
+    environment:
+      - TZ=America/New_York
+      - QDEBRID_LOGGING_LEVEL=info
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
-      - media
+      - media-stack
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   sonarr:
-    image: linuxserver/sonarr
+    image: linuxserver/sonarr:latest
     container_name: sonarr
     restart: unless-stopped
     ports:
@@ -296,85 +505,65 @@ services:
     volumes:
       - ./sonarr:/config
       - /mnt/media:/media
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
     networks:
-      - media
+      - media-stack
+
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    restart: unless-stopped
+    ports:
+      - "7878:7878"
+    volumes:
+      - ./radarr:/config
+      - /mnt/media:/media
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    networks:
+      - media-stack
 
 networks:
-  media:
+  media-stack:
     driver: bridge
 ```
 
-## GitHub Container Registry
-
-### Pull Image
+Start the stack:
 
 ```bash
-# Latest release
-docker pull ghcr.io/yourusername/qdebrid:latest
-
-# Specific version
-docker pull ghcr.io/yourusername/qdebrid:2.0.0
-
-# Development build
-docker pull ghcr.io/yourusername/qdebrid:development
+docker-compose up -d
+docker-compose logs -f
 ```
 
-### Authentication
+## Makefile Commands
 
-For private repositories:
+If building from source, use these Makefile targets:
 
 ```bash
-# Login to GHCR
-echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-
-# Pull image
-docker pull ghcr.io/yourusername/qdebrid:latest
+make docker-build         # Build Docker image
+make docker-run           # Run container locally
+make docker-compose-up    # Start with docker-compose
+make docker-compose-down  # Stop docker-compose
+make docker-compose-logs  # View logs
+make docker-push          # Push to registry
+make docker-buildx        # Multi-arch build
 ```
 
-## Advanced Configuration
+## Additional Resources
 
-### Custom Logging
-
-```bash
-docker run -d \
-  -e QDEBRID_LOGGING_LEVEL=debug \
-  -e QDEBRID_LOGGING_JSON=true \
-  ghcr.io/yourusername/qdebrid:latest
-```
-
-### Resource Limits
-
-```yaml
-services:
-  qdebrid:
-    image: ghcr.io/yourusername/qdebrid:latest
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-```
-
-### Health Check Customization
-
-```yaml
-services:
-  qdebrid:
-    image: ghcr.io/yourusername/qdebrid:latest
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-```
+- [Main README](../README.md) - Quick start and configuration
+- [Validation Guide](VALIDATION.md) - Media validation documentation
+- [Dockerfile](../Dockerfile) - Container build configuration
+- [docker-compose.yml](../docker-compose.yml) - Compose example
 
 ## Support
 
-- **Issues**: https://github.com/yourusername/qdebrid/issues
-- **Documentation**: https://github.com/yourusername/qdebrid/blob/main/README.md
-- **Health Check**: `GET /health`
-- **Logs**: `docker logs qdebrid -f`
+For issues and questions:
+- GitHub Issues: https://github.com/yourusername/qdebrid/issues
+- Logs: `docker logs qdebrid -f`
+- Health: `curl http://localhost:8080/health`

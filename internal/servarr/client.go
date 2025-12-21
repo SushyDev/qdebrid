@@ -24,6 +24,36 @@ type HistoryRecord struct {
 	Date       string `json:"date"`
 }
 
+// QueueRecord represents a queue entry from Servarr
+type QueueRecord struct {
+	ID         int     `json:"id"`
+	DownloadID string  `json:"downloadId"`
+	Title      string  `json:"title"`
+	Size       float64 `json:"size"`
+	Status     string  `json:"status"`
+
+	// Sonarr-specific fields
+	SeriesID   *int      `json:"seriesId,omitempty"`
+	EpisodeIDs []int     `json:"episodeIds,omitempty"`
+	Episodes   []Episode `json:"episodes,omitempty"`
+
+	// Radarr-specific fields
+	MovieID *int `json:"movieId,omitempty"`
+}
+
+// Episode represents a Sonarr episode
+type Episode struct {
+	ID            int    `json:"id"`
+	EpisodeNumber int    `json:"episodeNumber"`
+	SeasonNumber  int    `json:"seasonNumber"`
+	Title         string `json:"title"`
+}
+
+// QueueResponse represents the paginated queue response
+type QueueResponse struct {
+	Records []QueueRecord `json:"records"`
+}
+
 // NewClient creates a new Servarr client
 func NewClient(logger *zap.Logger) *Client {
 	return &Client{
@@ -82,4 +112,60 @@ func (c *Client) GetHistory(ctx context.Context, baseURL string, apiKey string) 
 	c.logger.Debug("fetched servarr history", zap.Int("records", len(records)))
 
 	return records, nil
+}
+
+// GetQueueByDownloadID retrieves queue entries for a specific download ID
+func (c *Client) GetQueueByDownloadID(ctx context.Context, baseURL string, apiKey string, downloadID string) ([]QueueRecord, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base URL: %w", err)
+	}
+
+	parsedURL.Path = parsedURL.Path + "/api/v3/queue"
+	query := parsedURL.Query()
+	query.Add("downloadId", downloadID)
+	query.Add("includeEpisode", "true") // For Sonarr - includes episode details
+	query.Add("includeMovie", "true")   // For Radarr - includes movie details
+	parsedURL.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", parsedURL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("X-Api-Key", apiKey)
+
+	c.logger.Debug("fetching servarr queue",
+		zap.String("url", parsedURL.Host),
+		zap.String("downloadId", downloadID))
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("unauthorized: check API key")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var queueResp QueueResponse
+	if err := json.NewDecoder(resp.Body).Decode(&queueResp); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	// Ensure we return an empty array instead of nil
+	if queueResp.Records == nil {
+		queueResp.Records = make([]QueueRecord, 0)
+	}
+
+	c.logger.Debug("fetched servarr queue",
+		zap.Int("records", len(queueResp.Records)),
+		zap.String("downloadId", downloadID))
+
+	return queueResp.Records, nil
 }

@@ -254,3 +254,17 @@ func (v *Validator) IsStreamableExtension(filename string) bool {
 
 	return false
 }
+
+// IsSampleFile checks if a file appears to be a sample based on its name
+func (v *Validator) IsSampleFile(filename string) bool {
+	lowerName := strings.ToLower(filename)
+	sampleIndicators := []string{"sample", "trailer", "preview", "demo"}
+
+	for _, indicator := range sampleIndicators {
+		if strings.Contains(lowerName, indicator) {
+			return true
+		}
+	}
+
+	return false
+}

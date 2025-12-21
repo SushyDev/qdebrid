@@ -57,7 +57,7 @@ func TestIntegrationRealDebridAPI(t *testing.T) {
 	defer logger.Sync()
 
 	// Create clients
-	debridClient := debrid.NewClient(&cfg.RealDebrid, logger)
+	debridClient := debrid.NewClient(&cfg.RealDebrid, &cfg.MediaValidation, logger)
 	defer debridClient.Shutdown()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -283,8 +283,10 @@ func TestConfigIntegration(t *testing.T) {
 						Token:             "test-token",
 						RequestsPerMinute: 60,
 						MaxRetries:        10,
-						MinFileSizeBytes:  1024,
-						AllowedFileTypes:  []string{"mkv", "mp4"},
+					},
+					MediaValidation: config.MediaValidationConfig{
+						MinFileSizeBytes:     1024,
+						StreamableExtensions: []string{"mkv", "mp4"},
 					},
 					Logging: config.LoggingConfig{
 						Level: "info",

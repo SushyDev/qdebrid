@@ -35,11 +35,10 @@ type ServerConfig struct {
 
 // RealDebridConfig holds Real-Debrid API configuration
 type RealDebridConfig struct {
-	Token             string   `yaml:"token"`
-	RequestsPerMinute int      `yaml:"requests_per_minute"`
-	MaxRetries        int      `yaml:"max_retries"`
-	AllowedFileTypes  []string `yaml:"allowed_file_types"`
-	MinFileSizeBytes  int64    `yaml:"min_file_size_bytes"`
+	Token                     string   `yaml:"token"`
+	RequestsPerMinute         int      `yaml:"requests_per_minute"`
+	MaxRetries                int      `yaml:"max_retries"`
+	AdditionalSelectableFiles []string `yaml:"additional_selectable_files"`
 }
 
 // MediaValidationConfig holds media validation configuration
@@ -47,12 +46,14 @@ type MediaValidationConfig struct {
 	Enabled              bool     `yaml:"enabled"`
 	RequireDownloaded    bool     `yaml:"require_downloaded"`
 	StreamableExtensions []string `yaml:"streamable_extensions"`
+	MinFileSizeBytes     int64    `yaml:"min_file_size_bytes"`
 	RequireVideoStream   bool     `yaml:"require_video_stream"`
 	RequireAudioStream   bool     `yaml:"require_audio_stream"`
 	MinDurationSeconds   int      `yaml:"min_duration_seconds"`
 	FFProbeTimeout       int      `yaml:"ffprobe_timeout"`
 	RejectSampleFiles    bool     `yaml:"reject_sample_files"`
 	SampleMinRuntime     int      `yaml:"sample_min_runtime"`
+	ValidateFileCount    bool     `yaml:"validate_file_count"`
 }
 
 // QBittorrentConfig holds qBittorrent emulation configuration
@@ -140,17 +141,29 @@ func (c *Config) SetDefaults() {
 		c.RealDebrid.MaxRetries = 10
 	}
 
-	if len(c.RealDebrid.AllowedFileTypes) == 0 {
-		c.RealDebrid.AllowedFileTypes = []string{"mkv", "mp4", "avi"}
-	}
-
-	if c.RealDebrid.MinFileSizeBytes == 0 {
-		c.RealDebrid.MinFileSizeBytes = 500 * 1024 * 1024 // 500MB
+	if len(c.RealDebrid.AdditionalSelectableFiles) == 0 {
+		c.RealDebrid.AdditionalSelectableFiles = []string{
+			"srt",  // SubRip subtitles
+			"sub",  // MicroDVD subtitles
+			"idx",  // VobSub subtitle index
+			"ass",  // Advanced SubStation Alpha subtitles
+			"ssa",  // SubStation Alpha subtitles
+			"smi",  // SAMI subtitles
+			"vtt",  // WebVTT subtitles
+			"nfo",  // Media info files
+			"jpg",  // Images (posters, fanart)
+			"jpeg", // Images
+			"png",  // Images
+			"tbn",  // Thumbnail images
+		}
 	}
 
 	// Media validation defaults
 	if len(c.MediaValidation.StreamableExtensions) == 0 {
 		c.MediaValidation.StreamableExtensions = []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"}
+	}
+	if c.MediaValidation.MinFileSizeBytes == 0 {
+		c.MediaValidation.MinFileSizeBytes = 500 * 1024 * 1024 // 500MB
 	}
 	if c.MediaValidation.FFProbeTimeout == 0 {
 		c.MediaValidation.FFProbeTimeout = 30 // 30 seconds
@@ -258,11 +271,19 @@ real_debrid:
   token: "YOUR_REAL_DEBRID_TOKEN_HERE"  # Required: Your Real-Debrid API token
   requests_per_minute: 20                # Rate limit (Real-Debrid allows ~60/min, we use 20 to be safe)
   max_retries: 10                        # Maximum retry attempts for failed requests
-  allowed_file_types:                    # Only download these file types
-    - "mkv"
-    - "mp4"
-    - "avi"
-  min_file_size_bytes: 524288000         # Minimum file size (500MB default)
+  additional_selectable_files:           # Additional file extensions to select (beyond video files)
+    - "srt"                              # SubRip subtitles
+    - "sub"                              # MicroDVD subtitles  
+    - "idx"                              # VobSub subtitle index
+    - "ass"                              # Advanced SubStation Alpha subtitles
+    - "ssa"                              # SubStation Alpha subtitles
+    - "smi"                              # SAMI subtitles
+    - "vtt"                              # WebVTT subtitles
+    - "nfo"                              # Media info files
+    - "jpg"                              # Images (posters, fanart)
+    - "jpeg"                             # Images
+    - "png"                              # Images
+    - "tbn"                              # Thumbnail images
 
 qbittorrent:
   category_name: "qdebrid"                           # Category name shown in *Arr apps
@@ -271,8 +292,8 @@ qbittorrent:
 
 media_validation:
   enabled: false                                      # Enable media validation with ffprobe
-  require_downloaded: true                            # Only validate if torrent status is 'downloaded'
-  streamable_extensions:                              # File extensions to validate
+  require_downloaded: true                            # Reject if torrent status is not 'downloaded'
+  streamable_extensions:                              # File extensions to select and validate
     - "mkv"
     - "mp4"
     - "avi"
@@ -280,12 +301,14 @@ media_validation:
     - "mov"
     - "wmv"
     - "webm"
+  min_file_size_bytes: 524288000                      # Minimum file size (500MB default) for selection
   require_video_stream: true                          # Reject if no video stream found
   require_audio_stream: true                          # Reject if no audio stream found
   min_duration_seconds: 0                             # Minimum video duration (0 = disabled)
   ffprobe_timeout: 30                                 # FFprobe timeout in seconds
   reject_sample_files: true                           # Reject sample files based on duration
   sample_min_runtime: 300                             # Minimum runtime in seconds (5 minutes)
+  validate_file_count: false                          # Validate expected number of video files from *arr
 
 data:
   directory: "./data"                                 # Directory for persistent data (history, state)

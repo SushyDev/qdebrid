@@ -22,11 +22,20 @@ func TestSetDefaults(t *testing.T) {
 				RealDebrid: RealDebridConfig{
 					RequestsPerMinute: 20,
 					MaxRetries:        10,
-					AllowedFileTypes:  []string{"mkv", "mp4", "avi"},
-					MinFileSizeBytes:  500 * 1024 * 1024,
+				},
+				MediaValidation: MediaValidationConfig{
+					StreamableExtensions: []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"},
+					MinFileSizeBytes:     500 * 1024 * 1024,
+					FFProbeTimeout:       30,
+					SampleMinRuntime:     300,
 				},
 				QBittorrent: QBittorrentConfig{
 					CategoryName: "qdebrid",
+				},
+				Data: DataConfig{
+					Directory:        "./data",
+					CleanupMaxAge:    "168h",
+					AutoSaveInterval: "5m",
 				},
 				Logging: LoggingConfig{
 					Level:      "info",
@@ -51,11 +60,20 @@ func TestSetDefaults(t *testing.T) {
 				RealDebrid: RealDebridConfig{
 					RequestsPerMinute: 30, // preserved
 					MaxRetries:        10,
-					AllowedFileTypes:  []string{"mkv", "mp4", "avi"},
-					MinFileSizeBytes:  500 * 1024 * 1024,
+				},
+				MediaValidation: MediaValidationConfig{
+					StreamableExtensions: []string{"mkv", "mp4", "avi", "m4v", "mov", "wmv", "webm"},
+					MinFileSizeBytes:     500 * 1024 * 1024,
+					FFProbeTimeout:       30,
+					SampleMinRuntime:     300,
 				},
 				QBittorrent: QBittorrentConfig{
 					CategoryName: "qdebrid",
+				},
+				Data: DataConfig{
+					Directory:        "./data",
+					CleanupMaxAge:    "168h",
+					AutoSaveInterval: "5m",
 				},
 				Logging: LoggingConfig{
 					Level:      "info",
@@ -84,9 +102,9 @@ func TestSetDefaults(t *testing.T) {
 				t.Errorf("RealDebrid.MaxRetries = %v, want %v",
 					got.RealDebrid.MaxRetries, tt.want.RealDebrid.MaxRetries)
 			}
-			if got.RealDebrid.MinFileSizeBytes != tt.want.RealDebrid.MinFileSizeBytes {
-				t.Errorf("RealDebrid.MinFileSizeBytes = %v, want %v",
-					got.RealDebrid.MinFileSizeBytes, tt.want.RealDebrid.MinFileSizeBytes)
+			if got.MediaValidation.MinFileSizeBytes != tt.want.MediaValidation.MinFileSizeBytes {
+				t.Errorf("MediaValidation.MinFileSizeBytes = %v, want %v",
+					got.MediaValidation.MinFileSizeBytes, tt.want.MediaValidation.MinFileSizeBytes)
 			}
 
 			// Check qbittorrent

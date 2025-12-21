@@ -17,14 +17,22 @@ import (
 
 // Client wraps the Real-Debrid client with rate limiting and retry logic
 type Client struct {
-	client *real_debrid.Client
-	queue  *retry.Queue
-	config *config.RealDebridConfig
-	logger *zap.Logger
+	client          *real_debrid.Client
+	queue           *retry.Queue
+	config          *config.RealDebridConfig
+	mediaValidation *config.MediaValidationConfig
+	logger          *zap.Logger
 }
 
 // NewClient creates a new Real-Debrid client with rate limiting and retry
-func NewClient(cfg *config.RealDebridConfig, logger *zap.Logger) *Client {
+func NewClient(cfg *config.RealDebridConfig, mediaValidation *config.MediaValidationConfig, logger *zap.Logger) *Client {
+	// Warn if streamable_extensions is empty
+	if len(mediaValidation.StreamableExtensions) == 0 {
+		logger.Warn("streamable_extensions is empty - all files will be selected regardless of type or size")
+		logger.Warn("this may result in selecting unwanted files (samples, extras, etc.)")
+		logger.Warn("consider configuring streamable_extensions in your config file")
+	}
+
 	httpClient := &http.Client{
 		Timeout: 30 * 1000000000, // 30 seconds
 	}
@@ -44,10 +52,11 @@ func NewClient(cfg *config.RealDebridConfig, logger *zap.Logger) *Client {
 	queue := retry.NewQueue(cfg.RequestsPerMinute, 3, retryConfig, logger)
 
 	return &Client{
-		client: rdClient,
-		queue:  queue,
-		config: cfg,
-		logger: logger,
+		client:          rdClient,
+		queue:           queue,
+		config:          cfg,
+		mediaValidation: mediaValidation,
+		logger:          logger,
 	}
 }
 
@@ -173,8 +182,15 @@ func (c *Client) SelectFiles(ctx context.Context, torrentID string) error {
 		// Filter files
 		fileIDs := c.filterFiles(info.Files)
 		if len(fileIDs) == 0 {
-			return fmt.Errorf("no files match criteria (types: %v, min size: %d bytes)",
-				c.config.AllowedFileTypes, c.config.MinFileSizeBytes)
+			c.logger.Warn("no files match selection criteria",
+				zap.String("torrent_id", torrentID),
+				zap.Strings("streamable_extensions", c.mediaValidation.StreamableExtensions),
+				zap.Strings("additional_selectable_files", c.config.AdditionalSelectableFiles),
+				zap.Int64("min_file_size_bytes", c.mediaValidation.MinFileSizeBytes),
+				zap.Int("total_files_in_torrent", len(info.Files)))
+
+			return fmt.Errorf("no files match criteria (streamable extensions: %v, additional files: %v, min size: %d bytes, total files: %d)",
+				c.mediaValidation.StreamableExtensions, c.config.AdditionalSelectableFiles, c.mediaValidation.MinFileSizeBytes, len(info.Files))
 		}
 
 		c.logger.Debug("selecting files",
@@ -266,26 +282,71 @@ func (c *Client) DeleteTorrentByHash(ctx context.Context, hash string) error {
 
 // filterFiles filters files based on configuration
 func (c *Client) filterFiles(files []api.TorrentFile) []string {
-	if len(c.config.AllowedFileTypes) == 0 {
+	if len(c.mediaValidation.StreamableExtensions) == 0 && len(c.config.AdditionalSelectableFiles) == 0 {
 		// No filter, select all files
+		c.logger.Debug("no file filters configured, selecting all files",
+			zap.Int("total_files", len(files)))
 		return []string{"all"}
 	}
 
 	var fileIDs []string
-	for _, file := range files {
-		// Check minimum size
-		if int64(file.Bytes) < c.config.MinFileSizeBytes {
-			continue
-		}
+	var skippedTooSmall int
+	var skippedNoMatch int
 
-		// Check file extension
-		for _, ext := range c.config.AllowedFileTypes {
-			if strings.HasSuffix(strings.ToLower(file.Path), "."+strings.ToLower(ext)) {
-				fileIDs = append(fileIDs, strconv.Itoa(file.ID))
-				break
+	for _, file := range files {
+		shouldSelect := false
+
+		// Check if it's a streamable video file (with size requirement)
+		if int64(file.Bytes) >= c.mediaValidation.MinFileSizeBytes {
+			for _, ext := range c.mediaValidation.StreamableExtensions {
+				if strings.HasSuffix(strings.ToLower(file.Path), "."+strings.ToLower(ext)) {
+					shouldSelect = true
+					c.logger.Debug("selected video file",
+						zap.String("file", file.Path),
+						zap.Int64("size", int64(file.Bytes)),
+						zap.String("extension", ext))
+					break
+				}
+			}
+		} else if len(c.mediaValidation.StreamableExtensions) > 0 {
+			// File is too small for video, check if it matches video extensions
+			for _, ext := range c.mediaValidation.StreamableExtensions {
+				if strings.HasSuffix(strings.ToLower(file.Path), "."+strings.ToLower(ext)) {
+					skippedTooSmall++
+					c.logger.Debug("skipped video file (too small)",
+						zap.String("file", file.Path),
+						zap.Int64("size", int64(file.Bytes)),
+						zap.Int64("min_size", c.mediaValidation.MinFileSizeBytes))
+					break
+				}
 			}
 		}
+
+		// Check if it's an additional selectable file (no size requirement)
+		if !shouldSelect && len(c.config.AdditionalSelectableFiles) > 0 {
+			for _, ext := range c.config.AdditionalSelectableFiles {
+				if strings.HasSuffix(strings.ToLower(file.Path), "."+strings.ToLower(ext)) {
+					shouldSelect = true
+					c.logger.Debug("selected additional file",
+						zap.String("file", file.Path),
+						zap.String("extension", ext))
+					break
+				}
+			}
+		}
+
+		if shouldSelect {
+			fileIDs = append(fileIDs, strconv.Itoa(file.ID))
+		} else {
+			skippedNoMatch++
+		}
 	}
+
+	c.logger.Info("file selection complete",
+		zap.Int("selected", len(fileIDs)),
+		zap.Int("skipped_too_small", skippedTooSmall),
+		zap.Int("skipped_no_match", skippedNoMatch),
+		zap.Int("total", len(files)))
 
 	return fileIDs
 }

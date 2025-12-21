@@ -1,6 +1,7 @@
 package qbittorrent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sushydev/real_debrid_go/api"
 	"go.uber.org/zap"
 	"qdebrid/internal/cache"
 	"qdebrid/internal/config"
@@ -169,8 +171,34 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate media if enabled
-		if err := h.torrentService.AddAndValidate(ctx, torrentID); err != nil {
+		// Get torrent info first (needed for both validations)
+		torrentInfo, err := h.torrentService.GetInfo(ctx, torrentID)
+		if err != nil {
+			h.logger.Error("failed to get torrent info", zap.String("torrent_id", torrentID), zap.Error(err))
+			// Delete the torrent since we can't get its info
+			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+				h.logger.Error("failed to delete torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+			}
+			h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get torrent info: %v", err))
+			return
+		}
+
+		// Validate expected file count first if enabled (cheap - just counts files)
+		if h.config.MediaValidation.ValidateFileCount {
+			if err := h.validateExpectedFileCount(ctx, r, torrentInfo); err != nil {
+				h.logger.Error("file count validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
+				// Delete the torrent since it failed validation
+				if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+					h.logger.Error("failed to delete invalid torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+				}
+				h.respondError(w, http.StatusBadRequest, fmt.Sprintf("file count validation failed: %v", err))
+				return
+			}
+		}
+
+		// Now validate media quality if enabled (expensive - ffprobe on each file)
+		torrentInfo, err = h.torrentService.AddAndValidate(ctx, torrentID, torrentInfo)
+		if err != nil {
 			h.logger.Error("media validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
 			// Delete the torrent since it failed validation
 			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
@@ -190,8 +218,34 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate media if enabled
-		if err := h.torrentService.AddAndValidate(ctx, torrentID); err != nil {
+		// Get torrent info first (needed for both validations)
+		torrentInfo, err := h.torrentService.GetInfo(ctx, torrentID)
+		if err != nil {
+			h.logger.Error("failed to get torrent info", zap.String("torrent_id", torrentID), zap.Error(err))
+			// Delete the torrent since we can't get its info
+			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+				h.logger.Error("failed to delete torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+			}
+			h.respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get torrent info: %v", err))
+			return
+		}
+
+		// Validate expected file count first if enabled (cheap - just counts files)
+		if h.config.MediaValidation.ValidateFileCount {
+			if err := h.validateExpectedFileCount(ctx, r, torrentInfo); err != nil {
+				h.logger.Error("file count validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
+				// Delete the torrent since it failed validation
+				if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
+					h.logger.Error("failed to delete invalid torrent", zap.String("torrent_id", torrentID), zap.Error(delErr))
+				}
+				h.respondError(w, http.StatusBadRequest, fmt.Sprintf("file count validation failed: %v", err))
+				return
+			}
+		}
+
+		// Now validate media quality if enabled (expensive - ffprobe on each file)
+		torrentInfo, err = h.torrentService.AddAndValidate(ctx, torrentID, torrentInfo)
+		if err != nil {
 			h.logger.Error("media validation failed", zap.String("torrent_id", torrentID), zap.Error(err))
 			// Delete the torrent since it failed validation
 			if delErr := h.debridClient.DeleteTorrent(ctx, torrentID); delErr != nil {
@@ -530,4 +584,63 @@ func (h *Handler) extractFiles(r *http.Request) []io.ReadCloser {
 // openFile opens a multipart file
 func (h *Handler) openFile(fileHeader *multipart.FileHeader) (io.ReadCloser, error) {
 	return fileHeader.Open()
+}
+
+// validateExpectedFileCount validates that a torrent has the expected number of files from *arr
+func (h *Handler) validateExpectedFileCount(ctx context.Context, r *http.Request, torrentInfo *api.TorrentInfo) error {
+	// Parse auth to get Servarr credentials
+	servarrHost, servarrAPIKey, err := ParseAuthHeader(r)
+	if err != nil {
+		h.logger.Warn("skipping file count validation: failed to parse auth header", zap.Error(err))
+		return nil // Don't fail if we can't parse auth - maybe it's not from *arr
+	}
+
+	// Use torrent hash as downloadId
+	downloadID := torrentInfo.Hash
+	if downloadID == "" {
+		h.logger.Warn("skipping file count validation: torrent has no hash", zap.String("torrent_id", torrentInfo.ID))
+		return nil
+	}
+
+	// Query *arr queue API for this download
+	queueRecords, err := h.servarrClient.GetQueueByDownloadID(ctx, servarrHost, servarrAPIKey, downloadID)
+	if err != nil {
+		h.logger.Warn("skipping file count validation: failed to query queue",
+			zap.Error(err),
+			zap.String("downloadId", downloadID))
+		return nil // Don't fail if queue query fails - service might be unreachable
+	}
+
+	if len(queueRecords) == 0 {
+		h.logger.Debug("no queue records found for download", zap.String("downloadId", downloadID))
+		return nil // No queue entry found - maybe it's not tracked yet
+	}
+
+	// Use the first queue record
+	record := queueRecords[0]
+
+	// Determine expected file count based on *arr type
+	var expectedCount int
+	if record.SeriesID != nil {
+		// Sonarr - count episodes
+		expectedCount = len(record.EpisodeIDs)
+		h.logger.Info("validating Sonarr file count",
+			zap.String("torrent_id", torrentInfo.ID),
+			zap.String("downloadId", downloadID),
+			zap.Int("expected_episodes", expectedCount))
+	} else if record.MovieID != nil {
+		// Radarr - always 1 movie
+		expectedCount = 1
+		h.logger.Info("validating Radarr file count",
+			zap.String("torrent_id", torrentInfo.ID),
+			zap.String("downloadId", downloadID),
+			zap.Int("expected_movies", expectedCount))
+	} else {
+		h.logger.Debug("queue record has no seriesId or movieId, skipping validation",
+			zap.String("downloadId", downloadID))
+		return nil
+	}
+
+	// Validate file count
+	return h.torrentService.ValidateFileCount(ctx, torrentInfo, expectedCount)
 }
